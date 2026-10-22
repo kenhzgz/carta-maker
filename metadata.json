@@ -1,0 +1,6 @@
+{
+  "name": "Carta - Diseñador de Menús",
+  "description": "Diseña y exporta cartas de restaurante elegantes y profesionales en 4 sencillos pasos con vista previa en tiempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

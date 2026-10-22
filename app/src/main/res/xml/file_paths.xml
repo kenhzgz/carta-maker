@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="menu_exports" path="exports/" />
+    <files-path name="menu_backups" path="backups/" />
+</paths>
