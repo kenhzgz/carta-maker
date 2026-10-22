@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:   # Permite ejecutarlo manualmente desde la pestaña Actions
+  workflow_dispatch:
 
 jobs:
   build:
@@ -36,9 +36,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # ======================
-      # BUILD DEBUG (siempre)
-      # ======================
+      # ========== DEBUG APK ==========
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -49,14 +47,12 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      # ======================
-      # BUILD RELEASE (opcional firmado)
-      # ======================
-      - name: Build Release APK (sin firmar)
+      # ========== RELEASE APK ==========
+      - name: Build Release APK
+        if: github.event_name != 'pull_request'
         run: ./gradlew assembleRelease --stacktrace
-        if: github.event_name != 'pull_request'   # Solo en main / manual
 
-      - name: Upload Release APK (sin firmar)
+      - name: Upload Release APK
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
@@ -64,10 +60,15 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 14
 
-      # Si quieres generar también el AAB (recomendado para Play Store)
+      # ========== RELEASE AAB ==========
       - name: Build Release AAB
         if: github.event_name != 'pull_request'
         run: ./gradlew bundleRelease --stacktrace
 
       - name: Upload Release AAB
-        if: github.event_
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          retention-days: 14
