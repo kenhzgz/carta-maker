@@ -1,60 +1,30 @@
-name: Build Android App
-
+name: Build Android APK
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]  # Se ejecuta al hacer push a la rama principal
+  workflow_dispatch:     # Permite ejecutarlo manualmente desde la pestaña Actions
 
 jobs:
   build:
-    name: Build APK / AAB
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout código
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configurar JDK 17
-        uses: actions/setup-java@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '17'  # Ajusta si tu proyecto usa otra versión
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/gradle-build-action@v3
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v5
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 14
-
-      - name: Build Release APK
-        if: github.event_name != 'pull_request'
-        run: gradle assembleRelease --stacktrace
-
-      - name: Upload Release APK
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-unsigned
-          path: app/build/outputs/apk/release/*.apk
-          retention-days: 14
-
-      - name: Build Release AAB
-        if: github.event_name != 'pull_request'
-        run: gradle bundleRelease --stacktrace
-
-      - name: Upload Release AAB
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: app/build/outputs/bundle/release/*.aab
-          retention-days: 14
+          name: mi-app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
