@@ -21,24 +21,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Dar permisos a gradlew
-        run: chmod +x ./gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Cache de Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            \~/.gradle/caches
-            \~/.gradle/wrapper
-          key: \( {{ runner.os }}-gradle- \){{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      # ========== DEBUG APK ==========
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -47,10 +35,9 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      # ========== RELEASE APK ==========
       - name: Build Release APK
         if: github.event_name != 'pull_request'
-        run: ./gradlew assembleRelease --stacktrace
+        run: gradle assembleRelease --stacktrace
 
       - name: Upload Release APK
         if: github.event_name != 'pull_request'
@@ -60,10 +47,9 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           retention-days: 14
 
-      # ========== RELEASE AAB ==========
       - name: Build Release AAB
         if: github.event_name != 'pull_request'
-        run: ./gradlew bundleRelease --stacktrace
+        run: gradle bundleRelease --stacktrace
 
       - name: Upload Release AAB
         if: github.event_name != 'pull_request'
