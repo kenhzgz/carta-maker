@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions
+  workflow_dispatch:
 
 jobs:
   build:
@@ -26,6 +26,20 @@ jobs:
       with:
         packages: 'platform-tools'
 
+    - name: Localizar proyecto Gradle
+      id: locate
+      run: |
+        set -e
+        GRADLEW_PATH=$(find . -name "gradlew" -type f -not -path "*/build/*" | head -n 1)
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "::error::No se encontró gradlew. Revisa que el wrapper esté commiteado en el repositorio."
+          exit 1
+        fi
+        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+        echo "Proyecto Gradle encontrado en: $PROJECT_DIR"
+        echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+        chmod +x "$GRADLEW_PATH"
+
     - name: Cache de Gradle
       uses: actions/cache@v4
       with:
@@ -36,17 +50,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
-    - name: Dar permisos de ejecución al wrapper de Gradle
-      run: chmod +x ./gradlew
-
     - name: Compilar APK de Debug
+      working-directory: ${{ steps.locate.outputs.project_dir }}
       run: ./gradlew assembleDebug --stacktrace
       env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} # Opcional: elimínalo si tu app no usa Gemini
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     - name: Subir APK como artefacto
       uses: actions/upload-artifact@v4
       with:
         name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        path: ${{ steps.locate.outputs.project_dir }}/**/build/outputs/apk/debug/*.apk
         if-no-files-found: error
