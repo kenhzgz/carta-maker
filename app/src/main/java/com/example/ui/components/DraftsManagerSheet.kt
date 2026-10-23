@@ -52,6 +52,7 @@ fun DraftsManagerSheet(
     onRemoveCoverImage: (folderId: String, isCover: Boolean) -> Unit,
     onExportFolderPdf: (folderId: String) -> Unit,
     onExportFolderLongImage: (folderId: String, saveToGallery: Boolean) -> Unit,
+    onExportFolderPagesToGallery: ((folderId: String) -> Unit)? = null,
     onExportZip: () -> Unit,
     onImportZip: (Uri) -> Unit
 ) {
@@ -61,6 +62,7 @@ fun DraftsManagerSheet(
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var movingMenuId by remember { mutableStateOf<String?>(null) }
+    var showDeleteFolderDialog by remember { mutableStateOf(false) }
 
     // File picker for importing ZIP
     val importZipLauncher = rememberLauncherForActivityResult(
@@ -236,9 +238,9 @@ fun DraftsManagerSheet(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "Exportar \"${activeFolder.name}\"",
+                                            text = "Carta: \"${activeFolder.name}\"",
                                             style = MaterialTheme.typography.titleSmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )
@@ -250,30 +252,73 @@ fun DraftsManagerSheet(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+
+                                    // Delete Folder Button (with confirmation)
+                                    IconButton(
+                                        onClick = { showDeleteFolderDialog = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteOutline,
+                                            contentDescription = "Eliminar carta/carpeta",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Button(
                                         onClick = { onExportFolderPdf(activeFolder.id) },
                                         enabled = folderMenus.isNotEmpty(),
-                                        modifier = Modifier.weight(1f).testTag("export_folder_pdf_button")
+                                        modifier = Modifier.weight(1f).testTag("export_folder_pdf_button"),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Exportar PDF", style = MaterialTheme.typography.labelSmall)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Exportar\nPDF",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            softWrap = true,
+                                            maxLines = 2
+                                        )
+                                    }
+
+                                    if (onExportFolderPagesToGallery != null) {
+                                        FilledTonalButton(
+                                            onClick = { onExportFolderPagesToGallery(activeFolder.id) },
+                                            enabled = folderMenus.isNotEmpty(),
+                                            modifier = Modifier.weight(1f).testTag("export_folder_pages_button"),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = "Páginas en\nGalería",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                softWrap = true,
+                                                maxLines = 2
+                                            )
+                                        }
                                     }
 
                                     FilledTonalButton(
                                         onClick = { onExportFolderLongImage(activeFolder.id, true) },
                                         enabled = folderMenus.isNotEmpty(),
-                                        modifier = Modifier.weight(1f).testTag("export_folder_long_image_button")
+                                        modifier = Modifier.weight(1f).testTag("export_folder_long_image_button"),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                                     ) {
                                         Icon(Icons.Default.ViewAgenda, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Foto Larga Continua", style = MaterialTheme.typography.labelSmall)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            text = "Foto Larga\nContinua",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            softWrap = true,
+                                            maxLines = 2
+                                        )
                                     }
                                 }
                             }
@@ -572,6 +617,41 @@ fun DraftsManagerSheet(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { movingMenuId = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Delete Folder Confirmation Dialog
+    if (showDeleteFolderDialog && activeFolder != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteFolderDialog = false },
+            title = { Text("¿Eliminar carta \"${activeFolder.name}\"?") },
+            text = {
+                Text(
+                    text = "Esta acción eliminará la carpeta de la carta. Los borradores y páginas contenidos no se borrarán; se reasignarán automáticamente a otra carpeta disponible.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val folderToDeleteId = activeFolder.id
+                        val nextFolder = folders.firstOrNull { it.id != folderToDeleteId }
+                        if (nextFolder != null) {
+                            selectedFolderId = nextFolder.id
+                        }
+                        onDeleteFolder(folderToDeleteId)
+                        showDeleteFolderDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteFolderDialog = false }) {
                     Text("Cancelar")
                 }
             }

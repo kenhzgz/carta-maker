@@ -16,13 +16,34 @@ data class MenuSection(
     val items: List<MenuItem> = emptyList()
 )
 
+data class FreeElement(
+    val id: String = UUID.randomUUID().toString(),
+    val type: FreeElementType = FreeElementType.TEXT,
+    val text: String = "¡Sugerencia del Chef!",
+    val imageUri: String? = null,
+    val xRatio: Float = 0.5f, // 0f to 1f relative to canvas
+    val yRatio: Float = 0.5f, // 0f to 1f relative to canvas
+    val scale: Float = 1.0f,
+    val rotation: Float = 0f,
+    val colorHex: String = "#F59E0B",
+    val fontSizeSp: Float = 14f,
+    val isBold: Boolean = true,
+    val hasBackground: Boolean = true,
+    val bgColorHex: String = "#000000",
+    val bgOpacity: Float = 0.70f,
+    val cornerRadiusDp: Float = 8f
+)
+
 data class MenuHeader(
     val restaurantName: String = "Atelier Bistró",
     val subtitle: String = "Cocina de Temporada & Brasa",
     val footer: String = "Precios con IVA incluido. Informe al personal si padece alguna alergia alimentaria.",
     val logoUri: String? = null,
     val logoSize: Float = 1.0f,
-    val logoShape: LogoShape = LogoShape.ROUNDED
+    val logoShape: LogoShape = LogoShape.ROUNDED,
+    val logoAlignment: LogoAlignment = LogoAlignment.CENTER,
+    val logoOffsetY: Float = 0f,
+    val headerOffsetY: Float = 0f
 )
 
 data class MenuBackground(
@@ -38,6 +59,8 @@ data class MenuStyle(
     val aspectRatio: MenuAspectRatio = MenuAspectRatio.RATIO_9_16,
     val titleFont: MenuFontFamily = MenuFontFamily.SERIF,
     val bodyFont: MenuFontFamily = MenuFontFamily.SANS,
+    val customTitleFontPath: String? = null,
+    val customBodyFontPath: String? = null,
     val primaryTextColorHex: String = "#F8FAFC",
     val secondaryTextColorHex: String = "#94A3B8",
     val priceColorHex: String = "#F59E0B",
@@ -50,6 +73,8 @@ data class MenuStyle(
     val itemSpacing: Float = 14f,
     val sectionSpacing: Float = 22f,
     val horizontalPadding: Float = 24f,
+    val topPadding: Float = 36f,
+    val bottomMargin: Float = 36f,
     val textAlignment: TextAlignment = TextAlignment.LEFT,
     val currencySymbol: String = "€",
     val currencyPosition: CurrencyPosition = CurrencyPosition.AFTER,
@@ -74,7 +99,8 @@ data class MenuData(
     val header: MenuHeader = MenuHeader(),
     val background: MenuBackground = MenuBackground(),
     val sections: List<MenuSection> = emptyList(),
-    val style: MenuStyle = MenuStyle()
+    val style: MenuStyle = MenuStyle(),
+    val freeElements: List<FreeElement> = emptyList()
 )
 
 data class MenuFolder(

@@ -30,9 +30,12 @@ import com.example.ui.components.ColorPickerRow
 @Composable
 fun Step1Background(
     menu: MenuData,
+    savedColors: List<String> = emptyList(),
     onMenuChange: (MenuData) -> Unit,
     onOpenImagePicker: (forLogo: Boolean) -> Unit,
     onExternalImagePicked: (Uri, forLogo: Boolean) -> Unit,
+    onSaveCustomColor: ((String) -> Unit)? = null,
+    onDeleteCustomColor: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -183,7 +186,10 @@ fun Step1Background(
                     selectedHex = menu.background.solidColorHex,
                     onColorSelected = { hex ->
                         onMenuChange(menu.copy(background = menu.background.copy(solidColorHex = hex)))
-                    }
+                    },
+                    savedCustomColors = savedColors,
+                    onSaveCustomColor = onSaveCustomColor,
+                    onDeleteCustomColor = onDeleteCustomColor
                 )
             }
 
@@ -392,6 +398,20 @@ fun Step1Background(
                             }
                         }
 
+                        // Logo Alignment
+                        Text("Alineación del logo:", style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LogoAlignment.values().forEach { align ->
+                                FilterChip(
+                                    selected = menu.header.logoAlignment == align,
+                                    onClick = {
+                                        onMenuChange(menu.copy(header = menu.header.copy(logoAlignment = align)))
+                                    },
+                                    label = { Text(align.displayName) }
+                                )
+                            }
+                        }
+
                         // Logo Shape
                         Text("Forma del logo:", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -424,7 +444,25 @@ fun Step1Background(
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Change Logo Action Buttons
+                        // Logo Vertical Offset Slider
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Desplazamiento vertical del logo:", style = MaterialTheme.typography.bodySmall)
+                            Text("${menu.header.logoOffsetY.toInt()} dp", style = MaterialTheme.typography.labelSmall)
+                        }
+                        Slider(
+                            value = menu.header.logoOffsetY,
+                            onValueChange = {
+                                onMenuChange(menu.copy(header = menu.header.copy(logoOffsetY = it)))
+                            },
+                            valueRange = -40f..80f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Change Logo Action Buttons (Multi-line friendly)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -442,7 +480,12 @@ fun Step1Background(
                             ) {
                                 Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Cambiar con app externa", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    text = "Cambiar foto\n(App externa)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    softWrap = true,
+                                    maxLines = 2
+                                )
                             }
 
                             OutlinedButton(
@@ -451,7 +494,12 @@ fun Step1Background(
                             ) {
                                 Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Mis fotos", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    text = "Mis fotos\nguardadas",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    softWrap = true,
+                                    maxLines = 2
+                                )
                             }
                         }
                     }
@@ -476,7 +524,12 @@ fun Step1Background(
                     ) {
                         Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Subir logo (App externa)", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = "Subir logo\n(App externa)",
+                            style = MaterialTheme.typography.labelSmall,
+                            softWrap = true,
+                            maxLines = 2
+                        )
                     }
 
                     FilledTonalButton(
@@ -487,7 +540,12 @@ fun Step1Background(
                     ) {
                         Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Fotos guardadas", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = "Fotos\nguardadas",
+                            style = MaterialTheme.typography.labelSmall,
+                            softWrap = true,
+                            maxLines = 2
+                        )
                     }
                 }
             }

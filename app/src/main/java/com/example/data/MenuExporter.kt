@@ -64,11 +64,13 @@ object MenuExporter {
         val accentColor = parseColor(menu.style.accentColorHex, Color.parseColor("#F59E0B"))
 
         // Fonts
-        val titleTypeface = getTypeface(menu.style.titleFont, bold = true)
-        val bodyTypeface = getTypeface(menu.style.bodyFont, bold = false)
-        val boldBodyTypeface = getTypeface(menu.style.bodyFont, bold = true)
+        val titleTypeface = getTypeface(menu.style.titleFont, menu.style.customTitleFontPath, bold = true)
+        val bodyTypeface = getTypeface(menu.style.bodyFont, menu.style.customBodyFontPath, bold = false)
+        val boldBodyTypeface = getTypeface(menu.style.bodyFont, menu.style.customBodyFontPath, bold = true)
 
-        var currentY = 56f * scale
+        val topPadding = menu.style.topPadding * scale * 2.2f
+        val botMargin = menu.style.bottomMargin * scale * 2.2f
+        var currentY = (56f * scale) + topPadding + (menu.header.headerOffsetY * scale)
 
         // 4. Draw Logo if available
         val logoUri = menu.header.logoUri
@@ -76,14 +78,20 @@ object MenuExporter {
             val logoBmp = loadBitmapFromUri(context, logoUri)
             if (logoBmp != null) {
                 val baseLogoSize = 140f * scale * menu.header.logoSize
+                val logoY = currentY + (menu.header.logoOffsetY * scale)
+                val logoX = when (menu.header.logoAlignment) {
+                    LogoAlignment.CENTER -> (width - baseLogoSize) / 2f
+                    LogoAlignment.LEFT -> horizPadding
+                    LogoAlignment.RIGHT -> width - horizPadding - baseLogoSize
+                }
                 val logoRect = RectF(
-                    (width - baseLogoSize) / 2f,
-                    currentY,
-                    (width + baseLogoSize) / 2f,
-                    currentY + baseLogoSize
+                    logoX,
+                    logoY,
+                    logoX + baseLogoSize,
+                    logoY + baseLogoSize
                 )
                 drawShapedBitmap(canvas, logoBmp, logoRect, menu.header.logoShape)
-                currentY += baseLogoSize + (20f * scale)
+                currentY = maxOf(currentY, logoY + baseLogoSize) + (20f * scale)
             }
         }
 
@@ -190,11 +198,16 @@ object MenuExporter {
                 contentWidth.toInt()
             ).setAlignment(Layout.Alignment.ALIGN_CENTER).build()
 
-            val footerY = (height - (50f * scale) - footerLayout.height).coerceAtLeast(currentY + 20f * scale)
+            val footerY = (height - (50f * scale) - botMargin - footerLayout.height).coerceAtLeast(currentY + 20f * scale)
             canvas.save()
             canvas.translate(horizPadding, footerY)
             footerLayout.draw(canvas)
             canvas.restore()
+        }
+
+        // 8. Draw Free Elements (Floating Text Stickers, Badges, Dish Photos)
+        menu.freeElements.forEach { element ->
+            drawFreeElement(context, canvas, width, height, element, scale, boldBodyTypeface)
         }
     }
 
@@ -599,19 +612,113 @@ object MenuExporter {
     private fun formatPrice(price: String, symbol: String, pos: CurrencyPosition): String {
         val trimmed = price.trim()
         if (trimmed.isBlank()) return ""
+        val cleanNumberStr = trimmed.replace(",", ".").replace("[^0-9.]".toRegex(), "")
+        val numericVal = cleanNumberStr.toDoubleOrNull()
+        if (numericVal != null && numericVal == 0.0) return ""
+
         return when (pos) {
             CurrencyPosition.AFTER -> if (symbol.isNotBlank()) "$trimmed $symbol" else trimmed
             CurrencyPosition.BEFORE -> if (symbol.isNotBlank()) "$symbol$trimmed" else trimmed
         }
     }
 
-    private fun getTypeface(font: MenuFontFamily, bold: Boolean): Typeface {
+    private fun getTypeface(font: MenuFontFamily, customPath: String? = null, bold: Boolean): Typeface {
+        if (font == MenuFontFamily.CUSTOM && !customPath.isNullOrBlank()) {
+            val customTf = FontStorageManager.loadTypefaceFromFile(customPath)
+            if (customTf != null) {
+                return if (bold) Typeface.create(customTf, Typeface.BOLD) else customTf
+            }
+        }
         return when (font) {
             MenuFontFamily.SERIF -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
             MenuFontFamily.SANS -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
             MenuFontFamily.CURSIVE -> if (bold) Typeface.create("cursive", Typeface.BOLD) else Typeface.create("cursive", Typeface.NORMAL)
             MenuFontFamily.MONO -> if (bold) Typeface.create(Typeface.MONOSPACE, Typeface.BOLD) else Typeface.MONOSPACE
+            MenuFontFamily.SERIF_BODONI -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
+            MenuFontFamily.SANS_GEOMETRIC -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
+            MenuFontFamily.CURSIVE_VINTAGE -> if (bold) Typeface.create("cursive", Typeface.BOLD) else Typeface.create("cursive", Typeface.NORMAL)
+            MenuFontFamily.DISPLAY_GOURMET -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
+            MenuFontFamily.CUSTOM -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
         }
+    }
+
+    private fun drawFreeElement(
+        context: Context,
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        element: FreeElement,
+        scale: Float,
+        defaultTypeface: Typeface
+    ) {
+        val posX = element.xRatio * width
+        val posY = element.yRatio * height
+
+        canvas.save()
+        canvas.translate(posX, posY)
+        canvas.rotate(element.rotation)
+        canvas.scale(element.scale, element.scale)
+
+        when (element.type) {
+            FreeElementType.TEXT -> {
+                if (element.text.isNotBlank()) {
+                    val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = parseColor(element.colorHex, Color.WHITE)
+                        typeface = if (element.isBold) Typeface.create(defaultTypeface, Typeface.BOLD) else defaultTypeface
+                        textSize = element.fontSizeSp * scale * 2.0f
+                    }
+                    val textW = paint.measureText(element.text)
+                    val textH = paint.textSize
+
+                    val padH = 12f * scale
+                    val padV = 8f * scale
+                    val rect = RectF(
+                        -textW / 2f - padH,
+                        -textH / 2f - padV,
+                        textW / 2f + padH,
+                        textH / 2f + padV
+                    )
+
+                    if (element.hasBackground) {
+                        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = parseColor(element.bgColorHex, Color.BLACK)
+                            alpha = (element.bgOpacity.coerceIn(0f, 1f) * 255).toInt()
+                        }
+                        val r = element.cornerRadiusDp * scale
+                        canvas.drawRoundRect(rect, r, r, bgPaint)
+                    }
+
+                    canvas.drawText(element.text, -textW / 2f, (textH * 0.35f), paint)
+                }
+            }
+            FreeElementType.PHOTO -> {
+                if (!element.imageUri.isNullOrBlank()) {
+                    val bmp = loadBitmapFromUri(context, element.imageUri)
+                    if (bmp != null) {
+                        val baseSize = 220f * scale
+                        val aspect = bmp.width.toFloat() / bmp.height.toFloat().coerceAtLeast(1f)
+                        val w = if (aspect >= 1f) baseSize else baseSize * aspect
+                        val h = if (aspect >= 1f) baseSize / aspect else baseSize
+                        val rect = RectF(-w / 2f, -h / 2f, w / 2f, h / 2f)
+
+                        val cornerRadius = element.cornerRadiusDp * scale
+                        if (cornerRadius > 1f) {
+                            val path = Path().apply {
+                                addRoundRect(rect, cornerRadius, cornerRadius, Path.Direction.CW)
+                            }
+                            canvas.save()
+                            canvas.clipPath(path)
+                            canvas.drawBitmap(bmp, null, rect, Paint(Paint.FILTER_BITMAP_FLAG))
+                            canvas.restore()
+                        } else {
+                            canvas.drawBitmap(bmp, null, rect, Paint(Paint.FILTER_BITMAP_FLAG))
+                        }
+                    }
+                }
+            }
+        }
+
+        canvas.restore()
     }
 
     private fun parseColor(hex: String, fallback: Int): Int {
@@ -790,5 +897,46 @@ object MenuExporter {
         }
 
         return stitched
+    }
+
+    fun exportFolderPagesToGallery(
+        context: Context,
+        folder: MenuFolder,
+        orderedMenus: List<MenuData>,
+        isPng: Boolean
+    ): List<Uri> {
+        val exported = mutableListOf<Uri>()
+        var pageNum = 1
+
+        // 1. Cover
+        if (!folder.coverImageUri.isNullOrBlank()) {
+            val coverBmp = loadBitmapFromUri(context, folder.coverImageUri)
+            if (coverBmp != null) {
+                val uri = saveToGallery(context, coverBmp, "${folder.name}_01_portada", isPng)
+                if (uri != null) exported.add(uri)
+                pageNum++
+            }
+        }
+
+        // 2. Drafts in sequence
+        orderedMenus.forEachIndexed { i, menu ->
+            val bmp = generateHighResBitmap(context, menu)
+            val numStr = String.format("%02d", pageNum++)
+            val safeMenuName = menu.name.ifBlank { "pagina_${i + 1}" }.replace(" ", "_")
+            val uri = saveToGallery(context, bmp, "${folder.name}_${numStr}_$safeMenuName", isPng)
+            if (uri != null) exported.add(uri)
+        }
+
+        // 3. Back cover
+        if (!folder.backCoverImageUri.isNullOrBlank()) {
+            val backBmp = loadBitmapFromUri(context, folder.backCoverImageUri)
+            if (backBmp != null) {
+                val numStr = String.format("%02d", pageNum++)
+                val uri = saveToGallery(context, backBmp, "${folder.name}_${numStr}_final", isPng)
+                if (uri != null) exported.add(uri)
+            }
+        }
+
+        return exported
     }
 }

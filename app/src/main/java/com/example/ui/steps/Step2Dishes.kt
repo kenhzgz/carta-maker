@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,9 +25,12 @@ import java.util.UUID
 @Composable
 fun Step2Dishes(
     menu: MenuData,
+    customBadges: List<String> = emptyList(),
     onMenuChange: (MenuData) -> Unit,
     onOpenBulkImport: () -> Unit,
     onOpenTemplates: () -> Unit,
+    onAddCustomBadge: ((String) -> Unit)? = null,
+    onDeleteCustomBadge: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -38,7 +42,7 @@ fun Step2Dishes(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Quick Action Bar
+        // Quick Action Bar (Multi-line friendly buttons)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -50,7 +54,12 @@ fun Step2Dishes(
             ) {
                 Icon(Icons.Default.ContentPaste, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Pegar lista", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = "Pegar lista\nde golpe",
+                    style = MaterialTheme.typography.labelSmall,
+                    softWrap = true,
+                    maxLines = 2
+                )
             }
 
             FilledTonalButton(
@@ -60,7 +69,12 @@ fun Step2Dishes(
             ) {
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Plantillas", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = "Plantillas\nprofesionales",
+                    style = MaterialTheme.typography.labelSmall,
+                    softWrap = true,
+                    maxLines = 2
+                )
             }
         }
 
@@ -111,6 +125,24 @@ fun Step2Dishes(
                     maxLines = 2,
                     modifier = Modifier.fillMaxWidth().testTag("input_footer")
                 )
+
+                // Header Vertical Offset
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Desplazamiento vertical de textos:", style = MaterialTheme.typography.bodySmall)
+                    Text("${menu.header.headerOffsetY.toInt()} dp", style = MaterialTheme.typography.labelSmall)
+                }
+                Slider(
+                    value = menu.header.headerOffsetY,
+                    onValueChange = {
+                        onMenuChange(menu.copy(header = menu.header.copy(headerOffsetY = it)))
+                    },
+                    valueRange = -40f..80f,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
@@ -121,53 +153,45 @@ fun Step2Dishes(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Secciones (${menu.sections.size})",
+                text = "Secciones y Platos (${menu.sections.size})",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Button(
                 onClick = {
-                    val newSection = MenuSection(
+                    val newSec = MenuSection(
                         title = "Nueva Sección",
-                        items = listOf(
-                            MenuItem(name = "Nuevo Plato", price = "10,00", description = "Descripción de ingredientes")
-                        )
+                        items = listOf(MenuItem(name = "Primer plato", price = "10,00"))
                     )
-                    onMenuChange(menu.copy(sections = menu.sections + newSection))
+                    onMenuChange(menu.copy(sections = menu.sections + newSec))
                 },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 modifier = Modifier.testTag("add_section_button")
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Añadir Sección", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-
-        if (menu.sections.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 32.dp),
-                contentAlignment = Alignment.Center
-            ) {
                 Text(
-                    text = "No hay secciones en la carta. Añade una o pega tu lista de golpe.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Añadir\nSección",
+                    style = MaterialTheme.typography.labelSmall,
+                    softWrap = true,
+                    maxLines = 2
                 )
             }
         }
 
+        // List of Sections
         menu.sections.forEachIndexed { sIndex, section ->
             SectionEditorCard(
                 section = section,
                 sIndex = sIndex,
                 totalSections = menu.sections.size,
-                onUpdateSection = { updatedSec ->
+                customBadges = customBadges,
+                onAddCustomBadge = onAddCustomBadge,
+                onDeleteCustomBadge = onDeleteCustomBadge,
+                onUpdateSection = { updatedSection ->
                     val newSections = menu.sections.toMutableList()
-                    newSections[sIndex] = updatedSec
+                    newSections[sIndex] = updatedSection
                     onMenuChange(menu.copy(sections = newSections))
                 },
                 onDeleteSection = {
@@ -202,6 +226,9 @@ fun SectionEditorCard(
     section: MenuSection,
     sIndex: Int,
     totalSections: Int,
+    customBadges: List<String>,
+    onAddCustomBadge: ((String) -> Unit)?,
+    onDeleteCustomBadge: ((String) -> Unit)?,
     onUpdateSection: (MenuSection) -> Unit,
     onDeleteSection: () -> Unit,
     onMoveSectionUp: () -> Unit,
@@ -273,6 +300,9 @@ fun SectionEditorCard(
                             item = item,
                             dIndex = dIndex,
                             totalItems = section.items.size,
+                            customBadges = customBadges,
+                            onAddCustomBadge = onAddCustomBadge,
+                            onDeleteCustomBadge = onDeleteCustomBadge,
                             onUpdateItem = { updatedItem ->
                                 val newItems = section.items.toMutableList()
                                 newItems[dIndex] = updatedItem
@@ -313,7 +343,11 @@ fun SectionEditorCard(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Añadir plato a ${section.title}")
+                        Text(
+                            text = "Añadir plato a ${section.title}",
+                            softWrap = true,
+                            maxLines = 2
+                        )
                     }
                 }
             }
@@ -326,12 +360,17 @@ fun DishItemEditor(
     item: MenuItem,
     dIndex: Int,
     totalItems: Int,
+    customBadges: List<String>,
+    onAddCustomBadge: ((String) -> Unit)?,
+    onDeleteCustomBadge: ((String) -> Unit)?,
     onUpdateItem: (MenuItem) -> Unit,
     onDeleteItem: () -> Unit,
     onMoveItemUp: () -> Unit,
     onMoveItemDown: () -> Unit
 ) {
-    val commonBadges = listOf("Vegano", "Vegetariano", "Nuevo", "Especialidad", "Sin Gluten", "Recomendado", "Top")
+    val defaultBadges = listOf("Vegano", "Vegetariano", "Nuevo", "Especialidad", "Sin Gluten", "Recomendado", "Top")
+    var showNewBadgeDialog by remember { mutableStateOf(false) }
+    var newBadgeInput by remember { mutableStateOf("") }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -356,9 +395,9 @@ fun DishItemEditor(
                 OutlinedTextField(
                     value = item.price,
                     onValueChange = { onUpdateItem(item.copy(price = it)) },
-                    placeholder = { Text("Precio") },
+                    placeholder = { Text("Precio (0 = ocultar)") },
                     singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("dish_price_$dIndex")
+                    modifier = Modifier.weight(1.3f).testTag("dish_price_$dIndex")
                 )
 
                 IconButton(
@@ -383,6 +422,17 @@ fun DishItemEditor(
                 }
             }
 
+            // Helper notice when price is blank or 0
+            val cleanPrice = item.price.trim().replace(",", ".").replace("[^0-9.]".toRegex(), "")
+            val isZeroOrBlank = item.price.isBlank() || cleanPrice.toDoubleOrNull() == 0.0
+            if (isZeroOrBlank) {
+                Text(
+                    text = "ℹ️ Sin precio: se mostrará solo el plato sin precio ni líneas de puntos.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
             // Row 2: Description
             OutlinedTextField(
                 value = item.description,
@@ -392,36 +442,130 @@ fun DishItemEditor(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Row 3: Badge chips
+            // Row 3: Badge chips with Custom Badges Support
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Badge:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                commonBadges.take(4).forEach { badge ->
-                    val isSelected = item.badge.equals(badge, ignoreCase = true)
-                    SuggestionChip(
+                Text(
+                    text = "Badge: ",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Default badges
+                    defaultBadges.forEach { badge ->
+                        val isSelected = item.badge.equals(badge, ignoreCase = true)
+                        SuggestionChip(
+                            onClick = {
+                                val next = if (isSelected) null else badge
+                                onUpdateItem(item.copy(badge = next))
+                            },
+                            label = { Text(badge, style = MaterialTheme.typography.labelSmall) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
+                            )
+                        )
+                    }
+
+                    // User Custom Badges
+                    customBadges.forEach { customBadge ->
+                        val isSelected = item.badge.equals(customBadge, ignoreCase = true)
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable {
+                                    val next = if (isSelected) null else customBadge
+                                    onUpdateItem(item.copy(badge = next))
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = customBadge,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (onDeleteCustomBadge != null) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Eliminar badge",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clickable { onDeleteCustomBadge(customBadge) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Add Custom Badge Button
+                    FilledTonalButton(
                         onClick = {
-                            val next = if (isSelected) null else badge
-                            onUpdateItem(item.copy(badge = next))
+                            newBadgeInput = ""
+                            showNewBadgeDialog = true
                         },
-                        label = { Text(badge, style = MaterialTheme.typography.labelSmall) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                        )
-                    )
-                }
-                if (item.badge != null && !commonBadges.take(4).contains(item.badge)) {
-                    SuggestionChip(
-                        onClick = { onUpdateItem(item.copy(badge = null)) },
-                        label = { Text(item.badge, style = MaterialTheme.typography.labelSmall) },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    )
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("+ Badge", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
+    }
+
+    // New Custom Badge Dialog
+    if (showNewBadgeDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewBadgeDialog = false },
+            title = { Text("Nueva Etiqueta / Badge") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Crea una etiqueta personalizada que podrás usar en cualquier plato:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    OutlinedTextField(
+                        value = newBadgeInput,
+                        onValueChange = { newBadgeInput = it },
+                        placeholder = { Text("ej: Picante, Sin Lactosa, Del Chef...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmed = newBadgeInput.trim()
+                        if (trimmed.isNotBlank()) {
+                            onAddCustomBadge?.invoke(trimmed)
+                            onUpdateItem(item.copy(badge = trimmed))
+                            showNewBadgeDialog = false
+                        }
+                    }
+                ) {
+                    Text("Añadir")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewBadgeDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }

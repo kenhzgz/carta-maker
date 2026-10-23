@@ -1,9 +1,13 @@
 package com.example.ui.steps
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,17 +22,33 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.example.data.CustomFontItem
 import com.example.model.*
 import com.example.ui.components.ColorPickerRow
 
 @Composable
 fun Step3Style(
     menu: MenuData,
+    savedColors: List<String> = emptyList(),
+    customFonts: List<CustomFontItem> = emptyList(),
     onMenuChange: (MenuData) -> Unit,
+    onSaveCustomColor: ((String) -> Unit)? = null,
+    onDeleteCustomColor: ((String) -> Unit)? = null,
+    onImportFont: ((Uri) -> Unit)? = null,
+    onDeleteFont: ((CustomFontItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var showAdvancedPrecision by remember { mutableStateOf(false) }
+
+    // Font file picker
+    val fontFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onImportFont?.invoke(uri)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -90,52 +110,142 @@ fun Step3Style(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 2. Tipografías ---
+        // --- 2. Tipografías y Fuentes Personalizadas ---
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = "2. Tipografías",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // Title Font
-            Text("Fuente para Títulos:", style = MaterialTheme.typography.bodySmall)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                MenuFontFamily.values().forEach { font ->
-                    FilterChip(
-                        selected = menu.style.titleFont == font,
-                        onClick = {
-                            onMenuChange(menu.copy(style = menu.style.copy(titleFont = font)))
-                        },
-                        label = { Text(font.displayName.substringBefore(" ")) }
+                Text(
+                    text = "2. Tipografías",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                // Upload Custom Font Button (Multi-line friendly)
+                OutlinedButton(
+                    onClick = {
+                        fontFilePickerLauncher.launch(
+                            arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                        )
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "Subir fuente\n(.ttf / .otf)",
+                        style = MaterialTheme.typography.labelSmall,
+                        softWrap = true,
+                        maxLines = 2
                     )
                 }
             }
 
-            // Body Font
-            Text("Fuente para Cuerpo de Texto:", style = MaterialTheme.typography.bodySmall)
+            // Title Font Selector
+            Text("Fuente para Títulos:", style = MaterialTheme.typography.bodySmall)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 MenuFontFamily.values().forEach { font ->
                     FilterChip(
-                        selected = menu.style.bodyFont == font,
+                        selected = menu.style.titleFont == font && menu.style.customTitleFontPath == null,
                         onClick = {
-                            onMenuChange(menu.copy(style = menu.style.copy(bodyFont = font)))
+                            onMenuChange(menu.copy(style = menu.style.copy(titleFont = font, customTitleFontPath = null)))
                         },
-                        label = { Text(font.displayName.substringBefore(" ")) }
+                        label = { Text(font.displayName) }
                     )
+                }
+            }
+
+            // Body Font Selector
+            Text("Fuente para Cuerpo de Texto:", style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                MenuFontFamily.values().forEach { font ->
+                    FilterChip(
+                        selected = menu.style.bodyFont == font && menu.style.customBodyFontPath == null,
+                        onClick = {
+                            onMenuChange(menu.copy(style = menu.style.copy(bodyFont = font, customBodyFontPath = null)))
+                        },
+                        label = { Text(font.displayName) }
+                    )
+                }
+            }
+
+            // Uploaded Custom Fonts List
+            if (customFonts.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Mis Fuentes Subidas (Guardadas en el teléfono):",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        customFonts.forEach { fontItem ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(fontItem.name, style = MaterialTheme.typography.bodySmall)
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    val isTitle = menu.style.customTitleFontPath == fontItem.file.absolutePath
+                                    val isBody = menu.style.customBodyFontPath == fontItem.file.absolutePath
+
+                                    FilterChip(
+                                        selected = isTitle,
+                                        onClick = {
+                                            val newPath = if (isTitle) null else fontItem.file.absolutePath
+                                            val newFont = if (isTitle) MenuFontFamily.SERIF else MenuFontFamily.CUSTOM
+                                            onMenuChange(menu.copy(style = menu.style.copy(titleFont = newFont, customTitleFontPath = newPath)))
+                                        },
+                                        label = { Text("Títulos", style = MaterialTheme.typography.labelSmall) }
+                                    )
+
+                                    FilterChip(
+                                        selected = isBody,
+                                        onClick = {
+                                            val newPath = if (isBody) null else fontItem.file.absolutePath
+                                            val newFont = if (isBody) MenuFontFamily.SANS else MenuFontFamily.CUSTOM
+                                            onMenuChange(menu.copy(style = menu.style.copy(bodyFont = newFont, customBodyFontPath = newPath)))
+                                        },
+                                        label = { Text("Texto", style = MaterialTheme.typography.labelSmall) }
+                                    )
+
+                                    if (onDeleteFont != null) {
+                                        IconButton(
+                                            onClick = { onDeleteFont(fontItem) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar fuente", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 3. Colores Personalizables ---
+        // --- 3. Colores Personalizables y Paleta Guardada ---
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
                 text = "3. Paleta de Colores de la Carta",
@@ -146,31 +256,46 @@ fun Step3Style(
             ColorPickerRow(
                 title = "Color de Texto Principal",
                 selectedHex = menu.style.primaryTextColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(primaryTextColorHex = it))) }
+                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(primaryTextColorHex = it))) },
+                savedCustomColors = savedColors,
+                onSaveCustomColor = onSaveCustomColor,
+                onDeleteCustomColor = onDeleteCustomColor
             )
 
             ColorPickerRow(
                 title = "Color de Texto Secundario (descripciones)",
                 selectedHex = menu.style.secondaryTextColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(secondaryTextColorHex = it))) }
+                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(secondaryTextColorHex = it))) },
+                savedCustomColors = savedColors,
+                onSaveCustomColor = onSaveCustomColor,
+                onDeleteCustomColor = onDeleteCustomColor
             )
 
             ColorPickerRow(
                 title = "Color de Precios",
                 selectedHex = menu.style.priceColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(priceColorHex = it))) }
+                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(priceColorHex = it))) },
+                savedCustomColors = savedColors,
+                onSaveCustomColor = onSaveCustomColor,
+                onDeleteCustomColor = onDeleteCustomColor
             )
 
             ColorPickerRow(
                 title = "Color de Acento (líneas y títulos)",
                 selectedHex = menu.style.accentColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(accentColorHex = it))) }
+                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(accentColorHex = it))) },
+                savedCustomColors = savedColors,
+                onSaveCustomColor = onSaveCustomColor,
+                onDeleteCustomColor = onDeleteCustomColor
             )
 
             ColorPickerRow(
                 title = "Fondo de las Cajas de Platos",
                 selectedHex = menu.style.cardBgColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(cardBgColorHex = it))) }
+                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(cardBgColorHex = it))) },
+                savedCustomColors = savedColors,
+                onSaveCustomColor = onSaveCustomColor,
+                onDeleteCustomColor = onDeleteCustomColor
             )
         }
 
@@ -329,12 +454,60 @@ fun Step3Style(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 6. Espaciados y Escala Global ---
+        // --- 6. Espaciados, Márgenes y Escala Global ---
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "6. Espaciado y Escala",
+                text = "6. Márgenes y Espaciados",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
+            )
+
+            // Top Padding Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Margen Superior (Top):", style = MaterialTheme.typography.bodySmall)
+                Text("${menu.style.topPadding.toInt()} dp", style = MaterialTheme.typography.labelSmall)
+            }
+            Slider(
+                value = menu.style.topPadding,
+                onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(topPadding = it))) },
+                valueRange = 0f..80f,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Bottom Margin Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Margen Inferior (Bottom):", style = MaterialTheme.typography.bodySmall)
+                Text("${menu.style.bottomMargin.toInt()} dp", style = MaterialTheme.typography.labelSmall)
+            }
+            Slider(
+                value = menu.style.bottomMargin,
+                onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(bottomMargin = it))) },
+                valueRange = 0f..80f,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Horizontal Margin Slider
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Márgenes Laterales:", style = MaterialTheme.typography.bodySmall)
+                Text("${menu.style.horizontalPadding.toInt()} dp", style = MaterialTheme.typography.labelSmall)
+            }
+            Slider(
+                value = menu.style.horizontalPadding,
+                onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(horizontalPadding = it))) },
+                valueRange = 12f..56f,
+                modifier = Modifier.fillMaxWidth()
             )
 
             // Global Font Scale Slider
@@ -384,22 +557,6 @@ fun Step3Style(
                 valueRange = 10f..40f,
                 modifier = Modifier.fillMaxWidth()
             )
-
-            // Margin Slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Márgenes laterales:", style = MaterialTheme.typography.bodySmall)
-                Text("${menu.style.horizontalPadding.toInt()} dp", style = MaterialTheme.typography.labelSmall)
-            }
-            Slider(
-                value = menu.style.horizontalPadding,
-                onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(horizontalPadding = it))) },
-                valueRange = 12f..48f,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -425,7 +582,7 @@ fun Step3Style(
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text(
-                            text = "Ajustes de Precisión Avanzada",
+                            text = "Ajustes de Precisión de Tamaños",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -438,7 +595,6 @@ fun Step3Style(
 
                 AnimatedVisibility(visible = showAdvancedPrecision) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Title size
                         PrecisionSlider(
                             label = "Título del restaurante",
                             value = menu.style.titleSizeSp,
@@ -446,7 +602,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(titleSizeSp = it))) }
                         )
 
-                        // Subtitle size
                         PrecisionSlider(
                             label = "Subtítulo",
                             value = menu.style.subtitleSizeSp,
@@ -454,7 +609,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(subtitleSizeSp = it))) }
                         )
 
-                        // Section title size
                         PrecisionSlider(
                             label = "Títulos de sección",
                             value = menu.style.sectionTitleSizeSp,
@@ -462,7 +616,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(sectionTitleSizeSp = it))) }
                         )
 
-                        // Dish name size
                         PrecisionSlider(
                             label = "Nombre de platos",
                             value = menu.style.itemNameSizeSp,
@@ -470,7 +623,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(itemNameSizeSp = it))) }
                         )
 
-                        // Price size
                         PrecisionSlider(
                             label = "Precios",
                             value = menu.style.itemPriceSizeSp,
@@ -478,7 +630,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(itemPriceSizeSp = it))) }
                         )
 
-                        // Description size
                         PrecisionSlider(
                             label = "Descripción de ingredientes",
                             value = menu.style.itemDescSizeSp,
@@ -486,7 +637,6 @@ fun Step3Style(
                             onValueChange = { onMenuChange(menu.copy(style = menu.style.copy(itemDescSizeSp = it))) }
                         )
 
-                        // Footer size
                         PrecisionSlider(
                             label = "Pie de página",
                             value = menu.style.footerSizeSp,

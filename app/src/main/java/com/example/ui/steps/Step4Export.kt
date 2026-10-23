@@ -40,6 +40,7 @@ fun Step4Export(
     onShareImage: (isPng: Boolean, (Uri) -> Unit) -> Unit,
     onExportFolderPdf: (folderId: String) -> Unit,
     onExportFolderLongImage: (folderId: String, saveToGallery: Boolean) -> Unit,
+    onExportFolderPagesToGallery: ((folderId: String) -> Unit)? = null,
     onFullscreenPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -336,26 +337,56 @@ fun Step4Export(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Button(
                             onClick = { onExportFolderPdf(currentFolder.id) },
                             enabled = !isExporting,
-                            modifier = Modifier.weight(1f).testTag("export_carta_completa_pdf")
+                            modifier = Modifier.weight(1f).testTag("export_carta_completa_pdf"),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                         ) {
                             Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Exportar PDF", style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Exportar\nPDF",
+                                style = MaterialTheme.typography.labelSmall,
+                                softWrap = true,
+                                maxLines = 2
+                            )
+                        }
+
+                        if (onExportFolderPagesToGallery != null) {
+                            FilledTonalButton(
+                                onClick = { onExportFolderPagesToGallery(currentFolder.id) },
+                                enabled = !isExporting,
+                                modifier = Modifier.weight(1f).testTag("export_folder_pages_gallery"),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Default.Collections, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "Páginas en\nGalería",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    softWrap = true,
+                                    maxLines = 2
+                                )
+                            }
                         }
 
                         FilledTonalButton(
                             onClick = { onExportFolderLongImage(currentFolder.id, true) },
                             enabled = !isExporting,
-                            modifier = Modifier.weight(1f).testTag("export_carta_completa_long_image")
+                            modifier = Modifier.weight(1f).testTag("export_carta_completa_long_image"),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                         ) {
                             Icon(Icons.Default.ViewAgenda, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Foto Larga (Galería)", style = MaterialTheme.typography.labelSmall)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Foto Larga\nContinua",
+                                style = MaterialTheme.typography.labelSmall,
+                                softWrap = true,
+                                maxLines = 2
+                            )
                         }
                     }
 

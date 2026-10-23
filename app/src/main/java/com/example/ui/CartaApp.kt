@@ -54,6 +54,9 @@ fun CartaApp(
     val showDraftsManagerSheet by viewModel.showDraftsManagerSheet.collectAsStateWithLifecycle()
 
     val savedImages by viewModel.savedImages.collectAsStateWithLifecycle()
+    val customColors by viewModel.customColors.collectAsStateWithLifecycle()
+    val customBadges by viewModel.customBadges.collectAsStateWithLifecycle()
+    val customFonts by viewModel.customFonts.collectAsStateWithLifecycle()
     val showImagePickerSheet by viewModel.showImagePickerSheet.collectAsStateWithLifecycle()
     val imagePickerForLogo by viewModel.imagePickerForLogo.collectAsStateWithLifecycle()
 
@@ -144,8 +147,8 @@ fun CartaApp(
                         )
                     }
 
-                    // Floating preview toggle (steps 0, 1, 2)
-                    if (currentStep < 3) {
+                    // Floating preview toggle (steps 0, 1, 2, 3)
+                    if (currentStep < 4) {
                         IconButton(
                             onClick = { showLivePreviewFloating = !showLivePreviewFloating },
                             modifier = Modifier.testTag("toggle_live_preview")
@@ -214,7 +217,7 @@ fun CartaApp(
                             Spacer(Modifier.width(1.dp))
                         }
 
-                        if (currentStep < 3) {
+                        if (currentStep < 4) {
                             Button(
                                 onClick = { viewModel.setStep(currentStep + 1) },
                                 modifier = Modifier.testTag("wizard_next_button")
@@ -223,6 +226,7 @@ fun CartaApp(
                                     when (currentStep) {
                                         0 -> "Siguiente: Platos"
                                         1 -> "Siguiente: Estilo"
+                                        2 -> "Siguiente: Avanzado"
                                         else -> "Siguiente: Exportar"
                                     }
                                 )
@@ -242,7 +246,7 @@ fun CartaApp(
                     }
                 }
 
-                // 4-Step Navigation Bar
+                // 5-Step Navigation Bar
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 8.dp
@@ -251,7 +255,8 @@ fun CartaApp(
                         Triple(0, "Fondo", Icons.Default.Wallpaper),
                         Triple(1, "Platos", Icons.Default.RestaurantMenu),
                         Triple(2, "Estilo", Icons.Default.Palette),
-                        Triple(3, "Exportar", Icons.Default.Share)
+                        Triple(3, "Avanzado", Icons.Default.AutoAwesome),
+                        Triple(4, "Exportar", Icons.Default.Share)
                     )
 
                     stepItems.forEach { (index, label, icon) ->
@@ -294,21 +299,44 @@ fun CartaApp(
                 when (step) {
                     0 -> Step1Background(
                         menu = currentMenu,
+                        savedColors = customColors,
                         onMenuChange = { viewModel.updateMenu(it) },
                         onOpenImagePicker = { forLogo -> viewModel.openImagePicker(forLogo) },
-                        onExternalImagePicked = { uri, forLogo -> viewModel.saveAndApplyImage(uri, forLogo) }
+                        onExternalImagePicked = { uri, forLogo -> viewModel.saveAndApplyImage(uri, forLogo) },
+                        onSaveCustomColor = { viewModel.saveCustomColor(it) },
+                        onDeleteCustomColor = { viewModel.deleteCustomColor(it) }
                     )
                     1 -> Step2Dishes(
                         menu = currentMenu,
+                        customBadges = customBadges,
                         onMenuChange = { viewModel.updateMenu(it) },
                         onOpenBulkImport = { viewModel.setShowBulkImport(true) },
-                        onOpenTemplates = { viewModel.setShowTemplates(true) }
+                        onOpenTemplates = { viewModel.setShowTemplates(true) },
+                        onAddCustomBadge = { viewModel.saveCustomBadge(it) },
+                        onDeleteCustomBadge = { viewModel.deleteCustomBadge(it) }
                     )
                     2 -> Step3Style(
                         menu = currentMenu,
-                        onMenuChange = { viewModel.updateMenu(it) }
+                        savedColors = customColors,
+                        customFonts = customFonts,
+                        onMenuChange = { viewModel.updateMenu(it) },
+                        onSaveCustomColor = { viewModel.saveCustomColor(it) },
+                        onDeleteCustomColor = { viewModel.deleteCustomColor(it) },
+                        onImportFont = { viewModel.importCustomFont(it) },
+                        onDeleteFont = { viewModel.deleteCustomFont(it) }
                     )
-                    3 -> Step4Export(
+                    3 -> Step3AdvancedElements(
+                        menu = currentMenu,
+                        savedColors = customColors,
+                        onMenuChange = { viewModel.updateMenu(it) },
+                        onOpenImagePickerForElement = { viewModel.openImagePickerForElement(it) },
+                        onExternalPhotoPicked = { uri, elemId ->
+                            viewModel.saveAndApplyImage(uri, false)
+                        },
+                        onFullscreenPreview = { viewModel.togglePreviewFullscreen(true) },
+                        onNextStep = { viewModel.setStep(4) }
+                    )
+                    4 -> Step4Export(
                         menu = currentMenu,
                         folders = folders,
                         isExporting = isExporting,
@@ -342,13 +370,16 @@ fun CartaApp(
                                 }
                             }
                         },
+                        onExportFolderPagesToGallery = { folderId ->
+                            viewModel.exportFolderPagesToGallery(context, folderId, isPng = true)
+                        },
                         onFullscreenPreview = { viewModel.togglePreviewFullscreen(true) }
                     )
                 }
             }
 
-            // Floating live preview overlay (Steps 0, 1, 2)
-            if (showLivePreviewFloating && currentStep < 3) {
+            // Floating live preview overlay (Steps 0, 1, 2, 3)
+            if (showLivePreviewFloating && currentStep < 4) {
                 Card(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -437,6 +468,28 @@ fun CartaApp(
                             )
                         }
                     }
+
+                    // Bottom Bar in fullscreen preview with direct Export button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .align(Alignment.BottomCenter),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.togglePreviewFullscreen(false)
+                                viewModel.setStep(4)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Amber500, contentColor = Zinc950),
+                            modifier = Modifier.testTag("preview_goto_export_button")
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Ir a Exportar", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
@@ -508,6 +561,9 @@ fun CartaApp(
                         context.startActivity(Intent.createChooser(intent, "Compartir Foto Larga"))
                     }
                 }
+            },
+            onExportFolderPagesToGallery = { folderId ->
+                viewModel.exportFolderPagesToGallery(context, folderId, isPng = true)
             },
             onExportZip = {
                 viewModel.exportZipBackup { zipFile ->

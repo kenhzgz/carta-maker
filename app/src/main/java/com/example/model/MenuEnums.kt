@@ -26,6 +26,12 @@ enum class LogoShape(val displayName: String) {
     ROUNDED("Redondeado")
 }
 
+enum class LogoAlignment(val displayName: String) {
+    CENTER("Centrado"),
+    LEFT("Izquierda"),
+    RIGHT("Derecha")
+}
+
 enum class MenuAspectRatio(val displayName: String, val ratioWidth: Float, val ratioHeight: Float, val exportWidth: Int, val exportHeight: Int) {
     RATIO_9_16("9:16 (Stories)", 9f, 16f, 1080, 1920),
     RATIO_4_5("4:5 (Feed)", 4f, 5f, 1080, 1350),
@@ -35,9 +41,14 @@ enum class MenuAspectRatio(val displayName: String, val ratioWidth: Float, val r
 
 enum class MenuFontFamily(val displayName: String) {
     SERIF("Serif Elegante"),
+    SERIF_BODONI("Bodoni / Didot"),
     SANS("Sans Moderna"),
+    SANS_GEOMETRIC("Sans Geométrica"),
     CURSIVE("Script Bistro"),
-    MONO("Monospace Roastery")
+    CURSIVE_VINTAGE("Cursiva Vintage"),
+    MONO("Monospace Roastery"),
+    DISPLAY_GOURMET("Display Gourmet"),
+    CUSTOM("Fuente Personalizada")
 }
 
 enum class LeaderLineStyle(val displayName: String) {
@@ -62,4 +73,9 @@ enum class TextAlignment(val displayName: String) {
 enum class CurrencyPosition(val displayName: String) {
     AFTER("Detrás (12,50 €)"),
     BEFORE("Delante ($12.50)")
+}
+
+enum class FreeElementType {
+    TEXT,
+    PHOTO
 }

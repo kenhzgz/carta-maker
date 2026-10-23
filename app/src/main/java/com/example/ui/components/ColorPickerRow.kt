@@ -9,7 +9,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,21 +19,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 
 data class ColorOption(val name: String, val hex: String)
 
 val DefaultPalette = listOf(
     ColorOption("Negro Carbón", "#121212"),
-    ColorOption("Pizarra", "#22272E"),
+    ColorOption("Pizarra Oscura", "#1E2229"),
+    ColorOption("Gris Grafito", "#2D3748"),
     ColorOption("Azul Marino", "#0F172A"),
-    ColorOption("Verde Pino", "#142E24"),
+    ColorOption("Azul Petróleo", "#164E63"),
+    ColorOption("Verde Bosque", "#0D3325"),
+    ColorOption("Verde Oliva", "#3F4F2E"),
+    ColorOption("Verde Salvia", "#556B2F"),
     ColorOption("Borgoña", "#3B1219"),
-    ColorOption("Crema", "#FDFBF7"),
-    ColorOption("Gris Perla", "#ECEFF1"),
-    ColorOption("Ocre", "#3D2E14"),
+    ColorOption("Rojo Teja / Terracota", "#8B3A2B"),
+    ColorOption("Marrón Espresso", "#2B1810"),
+    ColorOption("Ocre Cálido", "#78350F"),
     ColorOption("Ámbar Dorado", "#F59E0B"),
+    ColorOption("Oro Viejo", "#D97706"),
+    ColorOption("Mostaza Gourmet", "#EAB308"),
+    ColorOption("Crema Suave", "#FDFBF7"),
+    ColorOption("Blanco Marfil", "#F8F5EE"),
+    ColorOption("Lino Claro", "#EAE6DF"),
+    ColorOption("Gris Perla", "#ECEFF1"),
+    ColorOption("Rosa Palo", "#9D5C63"),
+    ColorOption("Cobre", "#B45309"),
+    ColorOption("Bronce", "#92400E"),
+    ColorOption("Índigo Profundo", "#1E1B4B"),
     ColorOption("Blanco Puro", "#FFFFFF")
 )
 
@@ -41,7 +56,10 @@ fun ColorPickerRow(
     selectedHex: String,
     onColorSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
-    palette: List<ColorOption> = DefaultPalette
+    palette: List<ColorOption> = DefaultPalette,
+    savedCustomColors: List<String> = emptyList(),
+    onSaveCustomColor: ((String) -> Unit)? = null,
+    onDeleteCustomColor: ((String) -> Unit)? = null
 ) {
     var showCustomHexDialog by remember { mutableStateOf(false) }
     var customHexInput by remember { mutableStateOf(selectedHex) }
@@ -74,7 +92,7 @@ fun ColorPickerRow(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(12.dp)
+                            .size(14.dp)
                             .clip(CircleShape)
                             .background(parseComposeColor(selectedHex))
                             .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
@@ -107,7 +125,7 @@ fun ColorPickerRow(
                         .background(c)
                         .border(
                             width = if (isSelected) 3.dp else 1.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.2f),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.25f),
                             shape = CircleShape
                         )
                         .clickable { onColorSelected(option.hex) },
@@ -138,42 +156,152 @@ fun ColorPickerRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Colorize,
-                    contentDescription = "Personalizar color hex",
+                    contentDescription = "Selector personalizado",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
+
+        // Saved Custom Colors Palette
+        if (savedCustomColors.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Guardados:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    savedCustomColors.forEach { savedHex ->
+                        val isSelected = selectedHex.equals(savedHex, ignoreCase = true)
+                        val c = parseComposeColor(savedHex)
+
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { onColorSelected(savedHex) }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(c)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 0.5.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.3f),
+                                        shape = CircleShape
+                                    )
+                            )
+                            Text(savedHex.uppercase(), style = MaterialTheme.typography.labelSmall)
+
+                            if (onDeleteCustomColor != null) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Eliminar color",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clickable { onDeleteCustomColor(savedHex) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showCustomHexDialog) {
+        val parsedColor = parseComposeColor(customHexInput)
         AlertDialog(
             onDismissRequest = { showCustomHexDialog = false },
-            title = { Text("Color personalizado (Hex)") },
+            title = { Text("Selector de Color Personalizado") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
-                        "Introduce el código hexadecimal (ej: #F59E0B):",
+                        "Introduce el código hexadecimal o selecciona un tono:",
                         style = MaterialTheme.typography.bodySmall
                     )
+
                     OutlinedTextField(
                         value = customHexInput,
                         onValueChange = { customHexInput = it },
+                        label = { Text("Código Hexadecimal") },
+                        placeholder = { Text("#RRGGBB") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Color Preview Card
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(40.dp)
+                            .height(48.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(parseComposeColor(customHexInput))
-                            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    )
+                            .background(parsedColor)
+                            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = customHexInput.uppercase(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isColorDark(parsedColor)) Color.White else Color.Black
+                        )
+                    }
+
+                    // Quick Swatches inside Dialog
+                    Text("Tonos rápidos:", style = MaterialTheme.typography.labelSmall)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("#000000", "#1C1917", "#1E3A8A", "#064E3B", "#831843", "#7C2D12", "#D97706", "#CA8A04", "#65A30D", "#0284C7", "#9333EA", "#FFFFFF").forEach { swatch ->
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(parseComposeColor(swatch))
+                                    .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                    .clickable { customHexInput = swatch }
+                            )
+                        }
+                    }
+
+                    // Option to save to personal palette
+                    if (onSaveCustomColor != null) {
+                        OutlinedButton(
+                            onClick = {
+                                val valid = if (!customHexInput.startsWith("#")) "#$customHexInput" else customHexInput
+                                onSaveCustomColor(valid)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Guardar color en mi paleta personal")
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         val valid = if (!customHexInput.startsWith("#")) "#$customHexInput" else customHexInput
                         onColorSelected(valid)

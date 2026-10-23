@@ -54,13 +54,11 @@ object MenuParser {
                     i++
                 }
             } else {
-                // If it doesn't match standard item or header, if it looks like a section header, promote it
-                if (line.length <= 40 && !line.any { it.isDigit() }) {
-                    commitCurrentSection()
-                    currentSectionTitle = cleanSectionTitle(line)
-                } else {
-                    // Fallback as simple dish item without price
-                    currentItems.add(MenuItem(name = line, price = ""))
+                // Not a section header, but line without price: parse as dish without price
+                val (itemWithoutPrice, consumedExtra) = parseItemWithoutPrice(line, if (i + 1 < lines.size) lines[i + 1] else null, badgeRegex)
+                currentItems.add(itemWithoutPrice)
+                if (consumedExtra) {
+                    i++
                 }
             }
             i++
@@ -178,5 +176,56 @@ object MenuParser {
         }
 
         return Pair(null, false)
+    }
+
+    private fun parseItemWithoutPrice(
+        line: String,
+        nextLine: String?,
+        badgeRegex: Regex
+    ): Pair<MenuItem, Boolean> {
+        var cleanLine = line.removePrefix("-").removePrefix("•").removePrefix("*").trim()
+
+        // Extract badge if present (e.g. [Vegano] or (Especialidad))
+        var badge: String? = null
+        val badgeMatch = badgeRegex.find(cleanLine)
+        if (badgeMatch != null) {
+            val potentialBadge = badgeMatch.groupValues[1].trim()
+            if (potentialBadge.length <= 25) {
+                badge = potentialBadge
+                cleanLine = cleanLine.replace(badgeMatch.value, "").trim()
+            }
+        }
+
+        var name = cleanLine
+        var description = ""
+        var consumedNextLine = false
+
+        if (name.contains(" - ") || name.contains(" — ") || name.contains(" | ")) {
+            val parts = name.split(Regex("""\s*[-—|]\s*"""))
+            if (parts.size >= 2) {
+                name = parts[0].trim()
+                description = parts.subList(1, parts.size).joinToString(" - ").trim()
+            }
+        }
+
+        // Check if nextLine is a candidate description
+        if (description.isBlank() && nextLine != null && !isSectionHeader(nextLine)) {
+            val nextHasDigit = nextLine.any { it.isDigit() }
+            if (!nextHasDigit && nextLine.length in 5..180) {
+                description = nextLine.trim()
+                consumedNextLine = true
+            }
+        }
+
+        return Pair(
+            MenuItem(
+                id = UUID.randomUUID().toString(),
+                name = if (name.isNotBlank()) name else "Plato de la casa",
+                price = "",
+                description = description,
+                badge = badge
+            ),
+            consumedNextLine
+        )
     }
 }

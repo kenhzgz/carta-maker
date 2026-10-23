@@ -5,6 +5,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.FontStorageManager
+import com.example.data.CustomFontItem
 import com.example.data.ImageStorageManager
 import com.example.data.MenuExporter
 import com.example.data.MenuParser
@@ -26,7 +28,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentMenu = MutableStateFlow<MenuData>(MenuTemplates.atelierBistro)
     val currentMenu: StateFlow<MenuData> = _currentMenu.asStateFlow()
 
-    private val _currentStep = MutableStateFlow(0) // 0: Fondo, 1: Platos, 2: Estilo, 3: Guardar
+    private val _currentStep = MutableStateFlow(0) // 0: Fondo, 1: Platos, 2: Estilo, 3: Avanzado, 4: Exportar
     val currentStep: StateFlow<Int> = _currentStep.asStateFlow()
 
     private val _folders = MutableStateFlow<List<MenuFolder>>(emptyList())
@@ -39,6 +41,18 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     private val _savedImages = MutableStateFlow<List<SavedImage>>(emptyList())
     val savedImages: StateFlow<List<SavedImage>> = _savedImages.asStateFlow()
 
+    // Custom palette colors
+    private val _customColors = MutableStateFlow<List<String>>(emptyList())
+    val customColors: StateFlow<List<String>> = _customColors.asStateFlow()
+
+    // Custom dish badges
+    private val _customBadges = MutableStateFlow<List<String>>(emptyList())
+    val customBadges: StateFlow<List<String>> = _customBadges.asStateFlow()
+
+    // Custom imported fonts
+    private val _customFonts = MutableStateFlow<List<CustomFontItem>>(emptyList())
+    val customFonts: StateFlow<List<CustomFontItem>> = _customFonts.asStateFlow()
+
     private val _showImagePickerSheet = MutableStateFlow(false)
     val showImagePickerSheet: StateFlow<Boolean> = _showImagePickerSheet.asStateFlow()
 
@@ -48,6 +62,10 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     // Holds Pair(folderId, isCover) if picking an image for a folder's cover / back cover
     private val _targetFolderForCover = MutableStateFlow<Pair<String, Boolean>?>(null)
     val targetFolderForCover: StateFlow<Pair<String, Boolean>?> = _targetFolderForCover.asStateFlow()
+
+    // Target element ID if picking an image for a FreeElement
+    private val _targetElementForPhoto = MutableStateFlow<String?>(null)
+    val targetElementForPhoto: StateFlow<String?> = _targetElementForPhoto.asStateFlow()
 
     // Undo / Redo
     private val undoStack = mutableListOf<MenuData>()
@@ -87,9 +105,16 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
             val loadedFolders = repository.getAllFolders()
             val loadedMenus = repository.getAllMenus()
             val loadedImages = ImageStorageManager.getSavedImages(getApplication())
+            val loadedColors = repository.getCustomColors()
+            val loadedBadges = repository.getCustomBadges()
+            val loadedFonts = FontStorageManager.getCustomFonts(getApplication())
+
             _folders.value = loadedFolders
             _savedMenus.value = loadedMenus
             _savedImages.value = loadedImages
+            _customColors.value = loadedColors
+            _customBadges.value = loadedBadges
+            _customFonts.value = loadedFonts
 
             if (loadedMenus.isNotEmpty()) {
                 _currentMenu.value = loadedMenus.first()
@@ -105,6 +130,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openImagePicker(forLogo: Boolean) {
         _targetFolderForCover.value = null
+        _targetElementForPhoto.value = null
         _imagePickerForLogo.value = forLogo
         _showImagePickerSheet.value = true
         loadSavedImages()
@@ -112,6 +138,14 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openImagePickerForFolder(folderId: String, isCover: Boolean) {
         _targetFolderForCover.value = Pair(folderId, isCover)
+        _targetElementForPhoto.value = null
+        _showImagePickerSheet.value = true
+        loadSavedImages()
+    }
+
+    fun openImagePickerForElement(elementId: String) {
+        _targetFolderForCover.value = null
+        _targetElementForPhoto.value = elementId
         _showImagePickerSheet.value = true
         loadSavedImages()
     }
@@ -119,6 +153,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     fun closeImagePicker() {
         _showImagePickerSheet.value = false
         _targetFolderForCover.value = null
+        _targetElementForPhoto.value = null
     }
 
     fun saveAndApplyImage(sourceUri: Uri, isForLogo: Boolean) {
@@ -126,8 +161,12 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
             val saved = ImageStorageManager.saveImageFromUri(getApplication(), sourceUri)
             if (saved != null) {
                 loadSavedImages()
+                val targetElem = _targetElementForPhoto.value
                 val folderTarget = _targetFolderForCover.value
-                if (folderTarget != null) {
+
+                if (targetElem != null) {
+                    applyImageToElement(saved.uriString, targetElem)
+                } else if (folderTarget != null) {
                     if (folderTarget.second) {
                         setFolderCoverImage(folderTarget.first, saved.uriString)
                     } else {
@@ -145,6 +184,13 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun applySavedImage(uriString: String, isForLogo: Boolean) {
+        val targetElem = _targetElementForPhoto.value
+        if (targetElem != null) {
+            applyImageToElement(uriString, targetElem)
+            _targetElementForPhoto.value = null
+            return
+        }
+
         val folderTarget = _targetFolderForCover.value
         if (folderTarget != null) {
             if (folderTarget.second) {
@@ -167,6 +213,97 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
             )
+        }
+    }
+
+    fun applyImageToElement(uriString: String, elementId: String) {
+        val current = _currentMenu.value
+        val updated = current.freeElements.map {
+            if (it.id == elementId) it.copy(imageUri = uriString) else it
+        }
+        updateMenu(current.copy(freeElements = updated))
+    }
+
+    // --- Custom Colors Management ---
+    fun saveCustomColor(hex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = repository.getCustomColors().toMutableList()
+            if (!list.contains(hex)) {
+                list.add(0, hex)
+                repository.saveCustomColors(list)
+                _customColors.value = list
+                withContext(Dispatchers.Main) {
+                    showToast("Color guardado en tu paleta personal")
+                }
+            }
+        }
+    }
+
+    fun deleteCustomColor(hex: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = repository.getCustomColors().toMutableList()
+            list.remove(hex)
+            repository.saveCustomColors(list)
+            _customColors.value = list
+        }
+    }
+
+    // --- Custom Badges Management ---
+    fun saveCustomBadge(badge: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = repository.getCustomBadges().toMutableList()
+            if (!list.contains(badge)) {
+                list.add(badge)
+                repository.saveCustomBadges(list)
+                _customBadges.value = list
+                withContext(Dispatchers.Main) {
+                    showToast("Etiqueta guardada para todos tus menús")
+                }
+            }
+        }
+    }
+
+    fun deleteCustomBadge(badge: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = repository.getCustomBadges().toMutableList()
+            list.remove(badge)
+            repository.saveCustomBadges(list)
+            _customBadges.value = list
+        }
+    }
+
+    // --- Custom Fonts Management ---
+    fun importCustomFont(uri: Uri) {
+        viewModelScope.launch {
+            val savedFile = FontStorageManager.saveFontFromUri(getApplication(), uri)
+            if (savedFile != null) {
+                _customFonts.value = FontStorageManager.getCustomFonts(getApplication())
+                showToast("Fuente instalada y guardada en la app")
+            } else {
+                showToast("Error al importar la fuente")
+            }
+        }
+    }
+
+    fun deleteCustomFont(fontItem: CustomFontItem) {
+        viewModelScope.launch {
+            val success = FontStorageManager.deleteFont(fontItem.file)
+            if (success) {
+                _customFonts.value = FontStorageManager.getCustomFonts(getApplication())
+                val current = _currentMenu.value
+                val path = fontItem.file.absolutePath
+                var newStyle = current.style
+                if (current.style.customTitleFontPath == path) {
+                    newStyle = newStyle.copy(customTitleFontPath = null, titleFont = MenuFontFamily.SERIF)
+                }
+                if (current.style.customBodyFontPath == path) {
+                    newStyle = newStyle.copy(customBodyFontPath = null, bodyFont = MenuFontFamily.SANS)
+                }
+                if (newStyle != current.style) {
+                    updateMenu(current.copy(style = newStyle))
+                }
+                showToast("Fuente eliminada")
+            }
         }
     }
 
@@ -203,7 +340,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setStep(step: Int) {
-        _currentStep.value = step.coerceIn(0, 3)
+        _currentStep.value = step.coerceIn(0, 4)
     }
 
     fun togglePreviewFullscreen(show: Boolean? = null) {
@@ -585,6 +722,31 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
                 onReady(uri)
             } else {
                 showToast("Error al exportar la foto larga de la carta")
+            }
+        }
+    }
+
+    fun exportFolderPagesToGallery(
+        context: Context,
+        folderId: String,
+        isPng: Boolean = true
+    ) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            val folder = _folders.value.find { it.id == folderId }
+            if (folder == null) {
+                _isExporting.value = false
+                return@launch
+            }
+            val orderedMenus = getOrderedMenusForFolder(folderId)
+            val uris = withContext(Dispatchers.Default) {
+                MenuExporter.exportFolderPagesToGallery(context, folder, orderedMenus, isPng)
+            }
+            _isExporting.value = false
+            if (uris.isNotEmpty()) {
+                showToast("${uris.size} páginas de la carta guardadas en Galería")
+            } else {
+                showToast("Error al exportar páginas a la galería")
             }
         }
     }

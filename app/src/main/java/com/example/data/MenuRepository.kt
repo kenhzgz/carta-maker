@@ -17,6 +17,8 @@ class MenuRepository(private val context: Context) {
 
     private val menusFile: File get() = File(context.filesDir, "carta_menus.json")
     private val foldersFile: File get() = File(context.filesDir, "carta_folders.json")
+    private val customColorsFile: File get() = File(context.filesDir, "carta_custom_colors.json")
+    private val customBadgesFile: File get() = File(context.filesDir, "carta_custom_badges.json")
 
     init {
         ensureInitialData()
@@ -36,6 +38,70 @@ class MenuRepository(private val context: Context) {
             val initialMenu = MenuTemplates.atelierBistro
             saveMenusList(listOf(initialMenu))
         }
+    }
+
+    @Synchronized
+    fun getCustomColors(): List<String> {
+        if (!customColorsFile.exists()) return emptyList()
+        return try {
+            val array = JSONArray(customColorsFile.readText())
+            val list = mutableListOf<String>()
+            for (i in 0 until array.length()) {
+                list.add(array.getString(i))
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    @Synchronized
+    fun saveCustomColors(colors: List<String>) {
+        val array = JSONArray()
+        colors.distinct().forEach { array.put(it) }
+        customColorsFile.writeText(array.toString(2))
+    }
+
+    @Synchronized
+    fun getCustomBadges(): List<String> {
+        if (!customBadgesFile.exists()) {
+            val defaults = listOf("Vegano", "Vegetariano", "Nuevo", "Especialidad", "Sin Gluten", "Recomendado", "Top", "Picante", "Casero")
+            saveCustomBadges(defaults)
+            return defaults
+        }
+        return try {
+            val array = JSONArray(customBadgesFile.readText())
+            val list = mutableListOf<String>()
+            for (i in 0 until array.length()) {
+                list.add(array.getString(i))
+            }
+            list
+        } catch (e: Exception) {
+            listOf("Vegano", "Vegetariano", "Nuevo", "Especialidad", "Sin Gluten", "Recomendado")
+        }
+    }
+
+    @Synchronized
+    fun saveCustomBadges(badges: List<String>) {
+        val array = JSONArray()
+        badges.distinct().forEach { array.put(it) }
+        customBadgesFile.writeText(array.toString(2))
+    }
+
+    @Synchronized
+    fun deleteFolder(folderId: String) {
+        val current = getAllFolders().filter { it.id != folderId }.toMutableList()
+        if (current.isEmpty()) {
+            current.add(MenuFolder(id = UUID.randomUUID().toString(), name = "Carta Principal", colorHex = "#F59E0B"))
+        }
+        saveFoldersList(current)
+
+        val targetFolderId = current.first().id
+        // Move any menus from the deleted folder to the target remaining folder
+        val menus = getAllMenus().map {
+            if (it.folderId == folderId) it.copy(folderId = targetFolderId) else it
+        }
+        saveMenusList(menus)
     }
 
     @Synchronized
@@ -87,18 +153,6 @@ class MenuRepository(private val context: Context) {
         saveFoldersList(current)
     }
 
-    @Synchronized
-    fun deleteFolder(folderId: String) {
-        if (folderId == "default") return // Do not delete default
-        val current = getAllFolders().filter { it.id != folderId }
-        saveFoldersList(current)
-
-        // Move any menus in that folder to default
-        val menus = getAllMenus().map {
-            if (it.folderId == folderId) it.copy(folderId = "default") else it
-        }
-        saveMenusList(menus)
-    }
 
     @Synchronized
     fun reorderMenusInFolder(folderId: String, newOrderIds: List<String>) {
@@ -213,6 +267,9 @@ class MenuRepository(private val context: Context) {
         h.put("logoUri", menu.header.logoUri ?: JSONObject.NULL)
         h.put("logoSize", menu.header.logoSize.toDouble())
         h.put("logoShape", menu.header.logoShape.name)
+        h.put("logoAlignment", menu.header.logoAlignment.name)
+        h.put("logoOffsetY", menu.header.logoOffsetY.toDouble())
+        h.put("headerOffsetY", menu.header.headerOffsetY.toDouble())
         root.put("header", h)
 
         // Background
@@ -251,6 +308,8 @@ class MenuRepository(private val context: Context) {
         st.put("aspectRatio", menu.style.aspectRatio.name)
         st.put("titleFont", menu.style.titleFont.name)
         st.put("bodyFont", menu.style.bodyFont.name)
+        st.put("customTitleFontPath", menu.style.customTitleFontPath ?: JSONObject.NULL)
+        st.put("customBodyFontPath", menu.style.customBodyFontPath ?: JSONObject.NULL)
         st.put("primaryTextColorHex", menu.style.primaryTextColorHex)
         st.put("secondaryTextColorHex", menu.style.secondaryTextColorHex)
         st.put("priceColorHex", menu.style.priceColorHex)
@@ -263,6 +322,8 @@ class MenuRepository(private val context: Context) {
         st.put("itemSpacing", menu.style.itemSpacing.toDouble())
         st.put("sectionSpacing", menu.style.sectionSpacing.toDouble())
         st.put("horizontalPadding", menu.style.horizontalPadding.toDouble())
+        st.put("topPadding", menu.style.topPadding.toDouble())
+        st.put("bottomMargin", menu.style.bottomMargin.toDouble())
         st.put("textAlignment", menu.style.textAlignment.name)
         st.put("currencySymbol", menu.style.currencySymbol)
         st.put("currencyPosition", menu.style.currencyPosition.name)
@@ -276,6 +337,29 @@ class MenuRepository(private val context: Context) {
         st.put("itemDescSizeSp", menu.style.itemDescSizeSp.toDouble())
         st.put("footerSizeSp", menu.style.footerSizeSp.toDouble())
         root.put("style", st)
+
+        // Free Elements
+        val freeArray = JSONArray()
+        menu.freeElements.forEach { fe ->
+            val fObj = JSONObject()
+            fObj.put("id", fe.id)
+            fObj.put("type", fe.type.name)
+            fObj.put("text", fe.text)
+            fObj.put("imageUri", fe.imageUri ?: JSONObject.NULL)
+            fObj.put("xRatio", fe.xRatio.toDouble())
+            fObj.put("yRatio", fe.yRatio.toDouble())
+            fObj.put("scale", fe.scale.toDouble())
+            fObj.put("rotation", fe.rotation.toDouble())
+            fObj.put("colorHex", fe.colorHex)
+            fObj.put("fontSizeSp", fe.fontSizeSp.toDouble())
+            fObj.put("isBold", fe.isBold)
+            fObj.put("hasBackground", fe.hasBackground)
+            fObj.put("bgColorHex", fe.bgColorHex)
+            fObj.put("bgOpacity", fe.bgOpacity.toDouble())
+            fObj.put("cornerRadiusDp", fe.cornerRadiusDp.toDouble())
+            freeArray.put(fObj)
+        }
+        root.put("freeElements", freeArray)
 
         return root
     }
@@ -298,7 +382,14 @@ class MenuRepository(private val context: Context) {
                 LogoShape.valueOf(hObj.optString("logoShape", "ROUNDED"))
             } catch (e: Exception) {
                 LogoShape.ROUNDED
-            }
+            },
+            logoAlignment = try {
+                LogoAlignment.valueOf(hObj.optString("logoAlignment", "CENTER"))
+            } catch (e: Exception) {
+                LogoAlignment.CENTER
+            },
+            logoOffsetY = hObj.optDouble("logoOffsetY", 0.0).toFloat(),
+            headerOffsetY = hObj.optDouble("headerOffsetY", 0.0).toFloat()
         )
 
         val bObj = obj.optJSONObject("background") ?: JSONObject()
@@ -371,6 +462,8 @@ class MenuRepository(private val context: Context) {
             } catch (e: Exception) {
                 MenuFontFamily.SANS
             },
+            customTitleFontPath = if (stObj.isNull("customTitleFontPath")) null else stObj.optString("customTitleFontPath"),
+            customBodyFontPath = if (stObj.isNull("customBodyFontPath")) null else stObj.optString("customBodyFontPath"),
             primaryTextColorHex = stObj.optString("primaryTextColorHex", "#F8FAFC"),
             secondaryTextColorHex = stObj.optString("secondaryTextColorHex", "#94A3B8"),
             priceColorHex = stObj.optString("priceColorHex", "#F59E0B"),
@@ -387,6 +480,8 @@ class MenuRepository(private val context: Context) {
             itemSpacing = stObj.optDouble("itemSpacing", 14.0).toFloat(),
             sectionSpacing = stObj.optDouble("sectionSpacing", 22.0).toFloat(),
             horizontalPadding = stObj.optDouble("horizontalPadding", 24.0).toFloat(),
+            topPadding = stObj.optDouble("topPadding", 36.0).toFloat(),
+            bottomMargin = stObj.optDouble("bottomMargin", 36.0).toFloat(),
             textAlignment = try {
                 TextAlignment.valueOf(stObj.optString("textAlignment", "LEFT"))
             } catch (e: Exception) {
@@ -413,6 +508,33 @@ class MenuRepository(private val context: Context) {
             footerSizeSp = stObj.optDouble("footerSizeSp", 10.0).toFloat()
         )
 
+        val freeElementsList = mutableListOf<FreeElement>()
+        val freeArray = obj.optJSONArray("freeElements")
+        if (freeArray != null) {
+            for (i in 0 until freeArray.length()) {
+                val fObj = freeArray.getJSONObject(i)
+                freeElementsList.add(
+                    FreeElement(
+                        id = fObj.optString("id", UUID.randomUUID().toString()),
+                        type = try { FreeElementType.valueOf(fObj.optString("type", "TEXT")) } catch (e: Exception) { FreeElementType.TEXT },
+                        text = fObj.optString("text", ""),
+                        imageUri = if (fObj.isNull("imageUri")) null else fObj.optString("imageUri"),
+                        xRatio = fObj.optDouble("xRatio", 0.5).toFloat(),
+                        yRatio = fObj.optDouble("yRatio", 0.5).toFloat(),
+                        scale = fObj.optDouble("scale", 1.0).toFloat(),
+                        rotation = fObj.optDouble("rotation", 0.0).toFloat(),
+                        colorHex = fObj.optString("colorHex", "#F59E0B"),
+                        fontSizeSp = fObj.optDouble("fontSizeSp", 14.0).toFloat(),
+                        isBold = fObj.optBoolean("isBold", true),
+                        hasBackground = fObj.optBoolean("hasBackground", true),
+                        bgColorHex = fObj.optString("bgColorHex", "#000000"),
+                        bgOpacity = fObj.optDouble("bgOpacity", 0.7).toFloat(),
+                        cornerRadiusDp = fObj.optDouble("cornerRadiusDp", 8.0).toFloat()
+                    )
+                )
+            }
+        }
+
         return MenuData(
             id = id,
             name = name,
@@ -422,7 +544,8 @@ class MenuRepository(private val context: Context) {
             header = header,
             background = background,
             sections = secList,
-            style = style
+            style = style,
+            freeElements = freeElementsList
         )
     }
 
