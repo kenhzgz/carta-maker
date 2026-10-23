@@ -1,0 +1,27 @@
+name: Diagnóstico del proyecto
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspeccionar:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout del código
+      uses: actions/checkout@v4
+
+    - name: Listar contenido del repositorio
+      run: |
+        echo "===== RAIZ ====="
+        ls -la
+        echo ""
+        echo "===== ARCHIVOS CLAVE ====="
+        for f in package.json build.gradle.kts build.gradle settings.gradle.kts settings.gradle pubspec.yaml index.html vite.config.ts app.json; do
+          if [ -e "$f" ]; then echo "✅ Encontrado: $f"; else echo "❌ Ausente: $f"; fi
+        done
+        echo ""
+        echo "===== TODOS LOS ARCHIVOS (primeros 200) ====="
+        find . -type f -not -path "./.git/*" | head -n 200
+        echo ""
+        echo "===== ¿gradlew en .gitignore? ====="
+        if [ -f .gitignore ]; then cat .gitignore; else echo "No hay .gitignore"; fi
