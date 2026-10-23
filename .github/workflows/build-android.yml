@@ -1,30 +1,34 @@
-name: Build Android APK
+name: Android Debug Build
+
 on:
   push:
-    branches: [ main ]  # Se ejecuta al hacer push a la rama principal
-  workflow_dispatch:     # Permite ejecutarlo manualmente desde la pestaña Actions
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout del código
+      uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'  # Ajusta si tu proyecto usa otra versión
+    - name: Configurar JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+    - name: Configurar Android SDK
+      uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug
+    - name: Compilar APK de Debug
+      run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v5
-        with:
-          name: mi-app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+    - name: Subir APK como artefacto
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
