@@ -576,11 +576,22 @@ object MenuExporter {
 
     private fun loadBitmapFromUri(context: Context, uriStr: String): Bitmap? {
         return try {
+            if (uriStr.startsWith("file://")) {
+                val path = Uri.parse(uriStr).path
+                if (path != null && java.io.File(path).exists()) {
+                    return BitmapFactory.decodeFile(path)
+                }
+            } else if (uriStr.startsWith("/")) {
+                if (java.io.File(uriStr).exists()) {
+                    return BitmapFactory.decodeFile(uriStr)
+                }
+            }
             val uri = Uri.parse(uriStr)
             context.contentResolver.openInputStream(uri)?.use { stream ->
                 BitmapFactory.decodeStream(stream)
             }
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }
@@ -664,5 +675,120 @@ object MenuExporter {
             "${context.packageName}.fileprovider",
             file
         )
+    }
+
+    // --- Multi-Page Folder (Carta Completa) Export ---
+
+    fun generateFolderPdf(
+        context: Context,
+        folder: MenuFolder,
+        orderedMenus: List<MenuData>
+    ): File {
+        val pdfDocument = android.graphics.pdf.PdfDocument()
+        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val safeName = folder.name.replace(" ", "_").replace("/", "_")
+        val pdfFile = File(exportDir, "Carta_${safeName}_${System.currentTimeMillis()}.pdf")
+
+        var pageNumber = 1
+
+        // 1. Portada (Cover) if present
+        if (!folder.coverImageUri.isNullOrBlank()) {
+            val coverBmp = loadBitmapFromUri(context, folder.coverImageUri)
+            if (coverBmp != null) {
+                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(1080, 1920, pageNumber++).create()
+                val page = pdfDocument.startPage(pageInfo)
+                drawCoverBitmap(page.canvas, coverBmp, 1080f, 1920f)
+                pdfDocument.finishPage(page)
+            }
+        }
+
+        // 2. Ordered Menus / Draft Pages
+        orderedMenus.forEach { menu ->
+            val w = menu.style.aspectRatio.exportWidth
+            val h = menu.style.aspectRatio.exportHeight
+            val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, pageNumber++).create()
+            val page = pdfDocument.startPage(pageInfo)
+            drawMenuOnCanvas(context, page.canvas, w.toFloat(), h.toFloat(), menu, isExport = true)
+            pdfDocument.finishPage(page)
+        }
+
+        // 3. Foto Final (Back Cover) if present
+        if (!folder.backCoverImageUri.isNullOrBlank()) {
+            val backBmp = loadBitmapFromUri(context, folder.backCoverImageUri)
+            if (backBmp != null) {
+                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(1080, 1920, pageNumber++).create()
+                val page = pdfDocument.startPage(pageInfo)
+                drawCoverBitmap(page.canvas, backBmp, 1080f, 1920f)
+                pdfDocument.finishPage(page)
+            }
+        }
+
+        FileOutputStream(pdfFile).use { os ->
+            pdfDocument.writeTo(os)
+        }
+        pdfDocument.close()
+
+        return pdfFile
+    }
+
+    fun generateFolderLongImage(
+        context: Context,
+        folder: MenuFolder,
+        orderedMenus: List<MenuData>
+    ): Bitmap {
+        val pageBitmaps = mutableListOf<Bitmap>()
+        val targetWidth = 1080
+
+        // 1. Portada (Cover)
+        if (!folder.coverImageUri.isNullOrBlank()) {
+            val coverBmp = loadBitmapFromUri(context, folder.coverImageUri)
+            if (coverBmp != null) {
+                val scaledHeight = (coverBmp.height.toFloat() / coverBmp.width.toFloat() * targetWidth).toInt().coerceIn(1080, 1920)
+                val destBmp = Bitmap.createBitmap(targetWidth, scaledHeight, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(destBmp)
+                drawCoverBitmap(canvas, coverBmp, targetWidth.toFloat(), scaledHeight.toFloat())
+                pageBitmaps.add(destBmp)
+            }
+        }
+
+        // 2. Draft Pages
+        orderedMenus.forEach { menu ->
+            val bmp = generateHighResBitmap(context, menu)
+            if (bmp.width != targetWidth) {
+                val scaledHeight = (bmp.height.toFloat() / bmp.width.toFloat() * targetWidth).toInt()
+                val scaled = Bitmap.createScaledBitmap(bmp, targetWidth, scaledHeight, true)
+                pageBitmaps.add(scaled)
+            } else {
+                pageBitmaps.add(bmp)
+            }
+        }
+
+        // 3. Foto Final (Back Cover)
+        if (!folder.backCoverImageUri.isNullOrBlank()) {
+            val backBmp = loadBitmapFromUri(context, folder.backCoverImageUri)
+            if (backBmp != null) {
+                val scaledHeight = (backBmp.height.toFloat() / backBmp.width.toFloat() * targetWidth).toInt().coerceIn(1080, 1920)
+                val destBmp = Bitmap.createBitmap(targetWidth, scaledHeight, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(destBmp)
+                drawCoverBitmap(canvas, backBmp, targetWidth.toFloat(), scaledHeight.toFloat())
+                pageBitmaps.add(destBmp)
+            }
+        }
+
+        if (pageBitmaps.isEmpty()) {
+            return Bitmap.createBitmap(targetWidth, 1920, Bitmap.Config.ARGB_8888)
+        }
+
+        val totalHeight = pageBitmaps.sumOf { it.height }
+        val stitched = Bitmap.createBitmap(targetWidth, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(stitched)
+
+        var curY = 0f
+        pageBitmaps.forEach { pageBmp ->
+            canvas.drawBitmap(pageBmp, 0f, curY, null)
+            curY += pageBmp.height.toFloat()
+        }
+
+        return stitched
     }
 }

@@ -53,6 +53,10 @@ fun CartaApp(
     val showTemplatesDialog by viewModel.showTemplatesDialog.collectAsStateWithLifecycle()
     val showDraftsManagerSheet by viewModel.showDraftsManagerSheet.collectAsStateWithLifecycle()
 
+    val savedImages by viewModel.savedImages.collectAsStateWithLifecycle()
+    val showImagePickerSheet by viewModel.showImagePickerSheet.collectAsStateWithLifecycle()
+    val imagePickerForLogo by viewModel.imagePickerForLogo.collectAsStateWithLifecycle()
+
     var showLivePreviewFloating by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -290,7 +294,9 @@ fun CartaApp(
                 when (step) {
                     0 -> Step1Background(
                         menu = currentMenu,
-                        onMenuChange = { viewModel.updateMenu(it) }
+                        onMenuChange = { viewModel.updateMenu(it) },
+                        onOpenImagePicker = { forLogo -> viewModel.openImagePicker(forLogo) },
+                        onExternalImagePicked = { uri, forLogo -> viewModel.saveAndApplyImage(uri, forLogo) }
                     )
                     1 -> Step2Dishes(
                         menu = currentMenu,
@@ -312,6 +318,30 @@ fun CartaApp(
                         onOpenDraftsManager = { viewModel.setShowDraftsManager(true) },
                         onExportToGallery = { isPng -> viewModel.exportToGallery(context, isPng) },
                         onShareImage = { isPng, onReady -> viewModel.shareMenu(context, isPng, onReady) },
+                        onExportFolderPdf = { folderId ->
+                            viewModel.exportFolderAsPdf(context, folderId) { _, uri ->
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Carta en PDF")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Compartir Carta en PDF"))
+                            }
+                        },
+                        onExportFolderLongImage = { folderId, saveToGallery ->
+                            viewModel.exportFolderAsLongImage(context, folderId, isPng = true, saveToGallery = saveToGallery) { uri ->
+                                if (!saveToGallery) {
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "image/png"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_SUBJECT, "Carta Completa")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, "Compartir Foto Larga"))
+                                }
+                            }
+                        },
                         onFullscreenPreview = { viewModel.togglePreviewFullscreen(true) }
                     )
                 }
@@ -445,6 +475,40 @@ fun CartaApp(
             onMoveDraft = { menuId, folderId -> viewModel.moveDraftToFolder(menuId, folderId) },
             onCreateFolder = { name, color -> viewModel.createFolder(name, color) },
             onDeleteFolder = { viewModel.deleteFolder(it) },
+            onReorderDraft = { folderId, menuId, moveUp ->
+                viewModel.reorderMenuInFolder(folderId, menuId, moveUp)
+            },
+            onSelectCoverImage = { folderId, isCover ->
+                viewModel.openImagePickerForFolder(folderId, isCover)
+            },
+            onRemoveCoverImage = { folderId, isCover ->
+                if (isCover) viewModel.setFolderCoverImage(folderId, null)
+                else viewModel.setFolderBackCoverImage(folderId, null)
+            },
+            onExportFolderPdf = { folderId ->
+                viewModel.exportFolderAsPdf(context, folderId) { _, uri ->
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, "Carta en PDF")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Compartir Carta en PDF"))
+                }
+            },
+            onExportFolderLongImage = { folderId, saveToGallery ->
+                viewModel.exportFolderAsLongImage(context, folderId, isPng = true, saveToGallery = saveToGallery) { uri ->
+                    if (!saveToGallery) {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "image/png"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            putExtra(Intent.EXTRA_SUBJECT, "Carta Completa")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Compartir Foto Larga"))
+                    }
+                }
+            },
             onExportZip = {
                 viewModel.exportZipBackup { zipFile ->
                     val uri = FileProvider.getUriForFile(
@@ -463,6 +527,27 @@ fun CartaApp(
             },
             onImportZip = { uri ->
                 viewModel.importZipBackup(uri)
+            }
+        )
+    }
+
+    // Saved Images & External App Photo Picker Sheet
+    if (showImagePickerSheet) {
+        val currentUri = if (imagePickerForLogo) currentMenu.header.logoUri else currentMenu.background.customImageUri
+        SavedImagesSheet(
+            isForLogo = imagePickerForLogo,
+            currentSelectedUri = currentUri,
+            savedImages = savedImages,
+            onDismiss = { viewModel.closeImagePicker() },
+            onImageSelected = { image ->
+                viewModel.applySavedImage(image.uriString, imagePickerForLogo)
+                viewModel.closeImagePicker()
+            },
+            onExternalImagePicked = { uri ->
+                viewModel.saveAndApplyImage(uri, imagePickerForLogo)
+            },
+            onDeleteImage = { image ->
+                viewModel.deleteSavedImage(image)
             }
         )
     }

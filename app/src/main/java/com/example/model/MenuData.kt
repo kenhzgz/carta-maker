@@ -79,6 +79,10 @@ data class MenuData(
 
 data class MenuFolder(
     val id: String = UUID.randomUUID().toString(),
-    val name: String = "General",
-    val colorHex: String = "#F59E0B"
+    val name: String = "Carta Principal",
+    val description: String = "",
+    val colorHex: String = "#F59E0B",
+    val coverImageUri: String? = null,
+    val backCoverImageUri: String? = null,
+    val menuOrderIds: List<String> = emptyList()
 )

@@ -1,16 +1,13 @@
 package com.example.ui.steps
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,37 +31,28 @@ import com.example.ui.components.ColorPickerRow
 fun Step1Background(
     menu: MenuData,
     onMenuChange: (MenuData) -> Unit,
+    onOpenImagePicker: (forLogo: Boolean) -> Unit,
+    onExternalImagePicked: (Uri, forLogo: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
 
-    // Photo pickers for custom background and logo
-    val customBgPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
+    // External App File/Photo Picker Launchers for direct access
+    val externalBgPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
         if (uri != null) {
-            onMenuChange(
-                menu.copy(
-                    background = menu.background.copy(
-                        type = BackgroundType.CUSTOM_IMAGE,
-                        customImageUri = uri.toString()
-                    )
-                )
-            )
+            onExternalImagePicked(uri, false)
         }
     }
 
-    val logoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
+    val externalLogoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
         if (uri != null) {
-            onMenuChange(
-                menu.copy(
-                    header = menu.header.copy(
-                        logoUri = uri.toString()
-                    )
-                )
-            )
+            onExternalImagePicked(uri, true)
         }
     }
 
@@ -143,7 +131,6 @@ fun Step1Background(
                                             shape = RoundedCornerShape(10.dp)
                                         )
                                         .clickable {
-                                            // Automatically pick high contrast text color for light textures like Marmol and Kraft
                                             val newPrimaryText = if (t == TexturePreset.MARMOL || t == TexturePreset.KRAFT) "#1A1A1A" else "#F8FAFC"
                                             val newSecText = if (t == TexturePreset.MARMOL || t == TexturePreset.KRAFT) "#555555" else "#94A3B8"
                                             onMenuChange(
@@ -229,23 +216,63 @@ fun Step1Background(
                                 modifier = Modifier.size(40.dp)
                             )
                             Text(
-                                "Sube una imagen de tu galería para el fondo",
+                                "Selecciona una foto para el fondo de tu carta",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        Button(
-                            onClick = {
-                                customBgPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            modifier = Modifier.testTag("upload_bg_button")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (menu.background.customImageUri != null) "Cambiar foto" else "Elegir foto")
+                            Button(
+                                onClick = {
+                                    val pickIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                        type = "image/*"
+                                        addCategory(Intent.CATEGORY_OPENABLE)
+                                    }
+                                    val chooser = Intent.createChooser(pickIntent, "Seleccionar fondo con app externa")
+                                    externalBgPickerLauncher.launch(chooser)
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("upload_bg_external_button")
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("App externa", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            FilledTonalButton(
+                                onClick = { onOpenImagePicker(false) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("view_saved_bg_photos_button")
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Fotos guardadas", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+
+                        if (menu.background.customImageUri != null) {
+                            TextButton(
+                                onClick = {
+                                    onMenuChange(
+                                        menu.copy(
+                                            background = menu.background.copy(
+                                                customImageUri = null,
+                                                type = BackgroundType.TEXTURE
+                                            )
+                                        )
+                                    )
+                                }
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Quitar foto de fondo", color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
@@ -350,7 +377,7 @@ fun Step1Background(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Logo cargado", style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    "Aparecerá en la cabecera superior",
+                                    "Guardado localmente en la app",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -396,20 +423,72 @@ fun Step1Background(
                             valueRange = 0.5f..2.0f,
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        // Change Logo Action Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val pickIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                        type = "image/*"
+                                        addCategory(Intent.CATEGORY_OPENABLE)
+                                    }
+                                    val chooser = Intent.createChooser(pickIntent, "Seleccionar logo con app externa")
+                                    externalLogoPickerLauncher.launch(chooser)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Cambiar con app externa", style = MaterialTheme.typography.labelSmall)
+                            }
+
+                            OutlinedButton(
+                                onClick = { onOpenImagePicker(true) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Mis fotos", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
                 }
             } else {
-                OutlinedButton(
-                    onClick = {
-                        logoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("upload_logo_button")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Subir logo del restaurante (Opcional)")
+                    Button(
+                        onClick = {
+                            val pickIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                type = "image/*"
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                            }
+                            val chooser = Intent.createChooser(pickIntent, "Seleccionar logo con app externa")
+                            externalLogoPickerLauncher.launch(chooser)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("upload_logo_external_button")
+                    ) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Subir logo (App externa)", style = MaterialTheme.typography.labelSmall)
+                    }
+
+                    FilledTonalButton(
+                        onClick = { onOpenImagePicker(true) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("view_saved_logo_photos_button")
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Fotos guardadas", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }

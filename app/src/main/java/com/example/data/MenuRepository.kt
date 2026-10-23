@@ -47,20 +47,31 @@ class MenuRepository(private val context: Context) {
             val list = mutableListOf<MenuFolder>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val orderArray = obj.optJSONArray("menuOrderIds")
+                val orderList = mutableListOf<String>()
+                if (orderArray != null) {
+                    for (j in 0 until orderArray.length()) {
+                        orderList.add(orderArray.getString(j))
+                    }
+                }
                 list.add(
                     MenuFolder(
                         id = obj.optString("id", UUID.randomUUID().toString()),
-                        name = obj.optString("name", "Carpeta"),
-                        colorHex = obj.optString("colorHex", "#F59E0B")
+                        name = obj.optString("name", "Carta Principal"),
+                        description = obj.optString("description", ""),
+                        colorHex = obj.optString("colorHex", "#F59E0B"),
+                        coverImageUri = if (obj.isNull("coverImageUri")) null else obj.optString("coverImageUri"),
+                        backCoverImageUri = if (obj.isNull("backCoverImageUri")) null else obj.optString("backCoverImageUri"),
+                        menuOrderIds = orderList
                     )
                 )
             }
             if (list.isEmpty()) {
-                listOf(MenuFolder(id = "default", name = "General", colorHex = "#F59E0B"))
+                listOf(MenuFolder(id = "default", name = "Carta Principal", colorHex = "#F59E0B"))
             } else list
         } catch (e: Exception) {
             e.printStackTrace()
-            listOf(MenuFolder(id = "default", name = "General", colorHex = "#F59E0B"))
+            listOf(MenuFolder(id = "default", name = "Carta Principal", colorHex = "#F59E0B"))
         }
     }
 
@@ -89,13 +100,29 @@ class MenuRepository(private val context: Context) {
         saveMenusList(menus)
     }
 
+    @Synchronized
+    fun reorderMenusInFolder(folderId: String, newOrderIds: List<String>) {
+        val current = getAllFolders().toMutableList()
+        val index = current.indexOfFirst { it.id == folderId }
+        if (index >= 0) {
+            current[index] = current[index].copy(menuOrderIds = newOrderIds)
+            saveFoldersList(current)
+        }
+    }
+
     private fun saveFoldersList(list: List<MenuFolder>) {
         val array = JSONArray()
         list.forEach { folder ->
             val obj = JSONObject()
             obj.put("id", folder.id)
             obj.put("name", folder.name)
+            obj.put("description", folder.description)
             obj.put("colorHex", folder.colorHex)
+            obj.put("coverImageUri", folder.coverImageUri ?: JSONObject.NULL)
+            obj.put("backCoverImageUri", folder.backCoverImageUri ?: JSONObject.NULL)
+            val orderArray = JSONArray()
+            folder.menuOrderIds.forEach { orderArray.put(it) }
+            obj.put("menuOrderIds", orderArray)
             array.put(obj)
         }
         foldersFile.writeText(array.toString(2))

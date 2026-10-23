@@ -5,9 +5,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.ImageStorageManager
 import com.example.data.MenuExporter
 import com.example.data.MenuParser
 import com.example.data.MenuRepository
+import com.example.data.SavedImage
 import com.example.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +34,20 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _savedMenus = MutableStateFlow<List<MenuData>>(emptyList())
     val savedMenus: StateFlow<List<MenuData>> = _savedMenus.asStateFlow()
+
+    // Saved images in app local storage
+    private val _savedImages = MutableStateFlow<List<SavedImage>>(emptyList())
+    val savedImages: StateFlow<List<SavedImage>> = _savedImages.asStateFlow()
+
+    private val _showImagePickerSheet = MutableStateFlow(false)
+    val showImagePickerSheet: StateFlow<Boolean> = _showImagePickerSheet.asStateFlow()
+
+    private val _imagePickerForLogo = MutableStateFlow(false)
+    val imagePickerForLogo: StateFlow<Boolean> = _imagePickerForLogo.asStateFlow()
+
+    // Holds Pair(folderId, isCover) if picking an image for a folder's cover / back cover
+    private val _targetFolderForCover = MutableStateFlow<Pair<String, Boolean>?>(null)
+    val targetFolderForCover: StateFlow<Pair<String, Boolean>?> = _targetFolderForCover.asStateFlow()
 
     // Undo / Redo
     private val undoStack = mutableListOf<MenuData>()
@@ -70,11 +86,118 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val loadedFolders = repository.getAllFolders()
             val loadedMenus = repository.getAllMenus()
+            val loadedImages = ImageStorageManager.getSavedImages(getApplication())
             _folders.value = loadedFolders
             _savedMenus.value = loadedMenus
+            _savedImages.value = loadedImages
 
             if (loadedMenus.isNotEmpty()) {
                 _currentMenu.value = loadedMenus.first()
+            }
+        }
+    }
+
+    fun loadSavedImages() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _savedImages.value = ImageStorageManager.getSavedImages(getApplication())
+        }
+    }
+
+    fun openImagePicker(forLogo: Boolean) {
+        _targetFolderForCover.value = null
+        _imagePickerForLogo.value = forLogo
+        _showImagePickerSheet.value = true
+        loadSavedImages()
+    }
+
+    fun openImagePickerForFolder(folderId: String, isCover: Boolean) {
+        _targetFolderForCover.value = Pair(folderId, isCover)
+        _showImagePickerSheet.value = true
+        loadSavedImages()
+    }
+
+    fun closeImagePicker() {
+        _showImagePickerSheet.value = false
+        _targetFolderForCover.value = null
+    }
+
+    fun saveAndApplyImage(sourceUri: Uri, isForLogo: Boolean) {
+        viewModelScope.launch {
+            val saved = ImageStorageManager.saveImageFromUri(getApplication(), sourceUri)
+            if (saved != null) {
+                loadSavedImages()
+                val folderTarget = _targetFolderForCover.value
+                if (folderTarget != null) {
+                    if (folderTarget.second) {
+                        setFolderCoverImage(folderTarget.first, saved.uriString)
+                    } else {
+                        setFolderBackCoverImage(folderTarget.first, saved.uriString)
+                    }
+                } else {
+                    applySavedImage(saved.uriString, isForLogo)
+                }
+                closeImagePicker()
+                showToast("Foto guardada en la app y aplicada")
+            } else {
+                showToast("Error al guardar la foto seleccionada")
+            }
+        }
+    }
+
+    fun applySavedImage(uriString: String, isForLogo: Boolean) {
+        val folderTarget = _targetFolderForCover.value
+        if (folderTarget != null) {
+            if (folderTarget.second) {
+                setFolderCoverImage(folderTarget.first, uriString)
+            } else {
+                setFolderBackCoverImage(folderTarget.first, uriString)
+            }
+            return
+        }
+
+        val current = _currentMenu.value
+        if (isForLogo) {
+            updateMenu(current.copy(header = current.header.copy(logoUri = uriString)))
+        } else {
+            updateMenu(
+                current.copy(
+                    background = current.background.copy(
+                        type = BackgroundType.CUSTOM_IMAGE,
+                        customImageUri = uriString
+                    )
+                )
+            )
+        }
+    }
+
+    fun deleteSavedImage(image: SavedImage) {
+        viewModelScope.launch {
+            val success = ImageStorageManager.deleteImage(getApplication(), image.file.absolutePath)
+            if (success) {
+                loadSavedImages()
+                // If the deleted image was currently in use, clear it
+                val current = _currentMenu.value
+                var changed = false
+                var newHeader = current.header
+                var newBackground = current.background
+
+                if (current.header.logoUri == image.uriString || current.header.logoUri == image.file.absolutePath) {
+                    newHeader = current.header.copy(logoUri = null)
+                    changed = true
+                }
+                if (current.background.customImageUri == image.uriString || current.background.customImageUri == image.file.absolutePath) {
+                    newBackground = current.background.copy(
+                        customImageUri = null,
+                        type = BackgroundType.TEXTURE
+                    )
+                    changed = true
+                }
+                if (changed) {
+                    updateMenu(current.copy(header = newHeader, background = newBackground))
+                }
+                showToast("Foto eliminada correctamente")
+            } else {
+                showToast("No se pudo eliminar la foto")
             }
         }
     }
@@ -345,6 +468,123 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.Main) {
                     showToast("Error al leer el archivo ZIP de copia de seguridad")
                 }
+            }
+        }
+    }
+
+    // --- Multi-page Folder (Carta Completa) Features ---
+
+    fun getOrderedMenusForFolder(folderId: String): List<MenuData> {
+        val folder = _folders.value.find { it.id == folderId }
+        val folderMenus = _savedMenus.value.filter { it.folderId == folderId }
+        if (folder == null || folder.menuOrderIds.isEmpty()) {
+            return folderMenus
+        }
+        val orderMap = folder.menuOrderIds.withIndex().associate { it.value to it.index }
+        return folderMenus.sortedBy { orderMap[it.id] ?: Int.MAX_VALUE }
+    }
+
+    fun reorderMenuInFolder(folderId: String, menuId: String, moveUp: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val folder = _folders.value.find { it.id == folderId } ?: return@launch
+            val currentOrdered = getOrderedMenusForFolder(folderId).toMutableList()
+            val index = currentOrdered.indexOfFirst { it.id == menuId }
+            if (index == -1) return@launch
+
+            if (moveUp && index > 0) {
+                val temp = currentOrdered[index]
+                currentOrdered[index] = currentOrdered[index - 1]
+                currentOrdered[index - 1] = temp
+            } else if (!moveUp && index < currentOrdered.size - 1) {
+                val temp = currentOrdered[index]
+                currentOrdered[index] = currentOrdered[index + 1]
+                currentOrdered[index + 1] = temp
+            }
+
+            val newOrderIds = currentOrdered.map { it.id }
+            repository.reorderMenusInFolder(folderId, newOrderIds)
+            _folders.value = repository.getAllFolders()
+        }
+    }
+
+    fun setFolderCoverImage(folderId: String, imageUri: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val folder = _folders.value.find { it.id == folderId } ?: return@launch
+            val updated = folder.copy(coverImageUri = imageUri)
+            repository.saveFolder(updated)
+            _folders.value = repository.getAllFolders()
+            withContext(Dispatchers.Main) {
+                showToast(if (imageUri != null) "Portada asignada a ${folder.name}" else "Portada eliminada")
+            }
+        }
+    }
+
+    fun setFolderBackCoverImage(folderId: String, imageUri: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val folder = _folders.value.find { it.id == folderId } ?: return@launch
+            val updated = folder.copy(backCoverImageUri = imageUri)
+            repository.saveFolder(updated)
+            _folders.value = repository.getAllFolders()
+            withContext(Dispatchers.Main) {
+                showToast(if (imageUri != null) "Foto final asignada a ${folder.name}" else "Foto final eliminada")
+            }
+        }
+    }
+
+    fun exportFolderAsPdf(context: Context, folderId: String, onReady: (File, Uri) -> Unit) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            val folder = _folders.value.find { it.id == folderId }
+            if (folder == null) {
+                _isExporting.value = false
+                return@launch
+            }
+            val orderedMenus = getOrderedMenusForFolder(folderId)
+            val pdfFile = withContext(Dispatchers.Default) {
+                MenuExporter.generateFolderPdf(context, folder, orderedMenus)
+            }
+            _isExporting.value = false
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                pdfFile
+            )
+            showToast("Documento PDF de la Carta generado con éxito")
+            onReady(pdfFile, uri)
+        }
+    }
+
+    fun exportFolderAsLongImage(
+        context: Context,
+        folderId: String,
+        isPng: Boolean,
+        saveToGallery: Boolean,
+        onReady: (Uri) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isExporting.value = true
+            val folder = _folders.value.find { it.id == folderId }
+            if (folder == null) {
+                _isExporting.value = false
+                return@launch
+            }
+            val orderedMenus = getOrderedMenusForFolder(folderId)
+            val uri = withContext(Dispatchers.Default) {
+                val stitched = MenuExporter.generateFolderLongImage(context, folder, orderedMenus)
+                if (saveToGallery) {
+                    MenuExporter.saveToGallery(context, stitched, "Carta_${folder.name}_Larga", isPng)
+                } else {
+                    MenuExporter.saveToCacheForSharing(context, stitched, "Carta_${folder.name}_Larga", isPng)
+                }
+            }
+            _isExporting.value = false
+            if (uri != null) {
+                if (saveToGallery) {
+                    showToast("Foto larga guardada en Galería / Fotos")
+                }
+                onReady(uri)
+            } else {
+                showToast("Error al exportar la foto larga de la carta")
             }
         }
     }

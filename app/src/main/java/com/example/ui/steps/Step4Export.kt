@@ -38,6 +38,8 @@ fun Step4Export(
     onOpenDraftsManager: () -> Unit,
     onExportToGallery: (isPng: Boolean) -> Unit,
     onShareImage: (isPng: Boolean, (Uri) -> Unit) -> Unit,
+    onExportFolderPdf: (folderId: String) -> Unit,
+    onExportFolderLongImage: (folderId: String, saveToGallery: Boolean) -> Unit,
     onFullscreenPreview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -301,6 +303,70 @@ fun Step4Export(
                     Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Compartir directamente (WhatsApp, Instagram...)")
+                }
+            }
+        }
+
+        // --- 3. Exportar Carta Completa Multi-Página ---
+        val currentFolder = folders.find { it.id == menu.folderId } ?: folders.firstOrNull()
+        if (currentFolder != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = "Carta Completa: ${currentFolder.name}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Exporta todas las páginas ordenadas de esta carta" +
+                                    (if (currentFolder.coverImageUri != null) " (con Portada)" else "") +
+                                    (if (currentFolder.backCoverImageUri != null) " (con Foto Final)" else ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { onExportFolderPdf(currentFolder.id) },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f).testTag("export_carta_completa_pdf")
+                        ) {
+                            Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Exportar PDF", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        FilledTonalButton(
+                            onClick = { onExportFolderLongImage(currentFolder.id, true) },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f).testTag("export_carta_completa_long_image")
+                        ) {
+                            Icon(Icons.Default.ViewAgenda, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Foto Larga (Galería)", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onOpenDraftsManager,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Reordenar páginas, portada o foto final")
+                    }
                 }
             }
         }

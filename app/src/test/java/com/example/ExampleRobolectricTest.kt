@@ -56,4 +56,32 @@ class ExampleRobolectricTest {
         assertTrue(folders.isNotEmpty())
         assertEquals("Atelier Bistró (Ejemplo)", menus.first().name)
     }
+
+    @Test
+    fun `test image storage manager directory`() = kotlinx.coroutines.test.runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val images = com.example.data.ImageStorageManager.getSavedImages(context)
+        assertNotNull(images)
+    }
+
+    @Test
+    fun `test folder covers and multi-page ordering`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val repo = MenuRepository(context)
+        val folders = repo.getAllFolders()
+        val defaultFolder = folders.first()
+
+        val updatedFolder = defaultFolder.copy(
+            coverImageUri = "file:///dummy/cover.jpg",
+            backCoverImageUri = "file:///dummy/back.jpg",
+            menuOrderIds = listOf("menu_1", "menu_2")
+        )
+        repo.saveFolder(updatedFolder)
+
+        val reloaded = repo.getAllFolders().find { it.id == defaultFolder.id }
+        assertNotNull(reloaded)
+        assertEquals("file:///dummy/cover.jpg", reloaded?.coverImageUri)
+        assertEquals("file:///dummy/back.jpg", reloaded?.backCoverImageUri)
+        assertEquals(2, reloaded?.menuOrderIds?.size)
+    }
 }
