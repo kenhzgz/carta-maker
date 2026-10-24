@@ -32,11 +32,7 @@ jobs:
       run: gradle wrapper --gradle-version 9.3.1 --distribution-type bin
 
     - name: Generar debug.keystore
-  run: 
-    keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey \
-      -storepass android -keypass android -keyalg RSA -keysize 2048 \
-      -validity 10000 -dname "CN=Android Debug,O=Android,C=US" \
-      -storetype JKS
+      run: keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey \ -storepass android -keypass android -keyalg RSA -keysize 2048 \ -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -storetype JKS
 
     # 3. Ahora que ./gradlew existe, compila normalmente
     - name: Compilar APK de Debug
