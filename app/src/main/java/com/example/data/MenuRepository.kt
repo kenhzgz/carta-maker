@@ -19,6 +19,7 @@ class MenuRepository(private val context: Context) {
     private val foldersFile: File get() = File(context.filesDir, "carta_folders.json")
     private val customColorsFile: File get() = File(context.filesDir, "carta_custom_colors.json")
     private val customBadgesFile: File get() = File(context.filesDir, "carta_custom_badges.json")
+    private val templatesFile: File get() = File(context.filesDir, "carta_templates.json")
 
     init {
         ensureInitialData()
@@ -35,9 +36,70 @@ class MenuRepository(private val context: Context) {
             saveFoldersList(defaultFolders)
         }
         if (!menusFile.exists()) {
-            val initialMenu = MenuTemplates.atelierBistro
+            val initialMenu = MenuTemplates.restauranteCupey
             saveMenusList(listOf(initialMenu))
         }
+        if (!templatesFile.exists()) {
+            saveTemplatesList(MenuTemplates.allTemplates)
+        }
+    }
+
+    // --- Templates Management ---
+    @Synchronized
+    fun getAllTemplates(): List<MenuData> {
+        if (!templatesFile.exists()) {
+            saveTemplatesList(MenuTemplates.allTemplates)
+            return MenuTemplates.allTemplates
+        }
+        return try {
+            val jsonStr = templatesFile.readText()
+            val array = JSONArray(jsonStr)
+            val list = mutableListOf<MenuData>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(deserializeMenu(obj))
+            }
+            if (list.isEmpty()) {
+                MenuTemplates.allTemplates
+            } else list
+        } catch (e: Exception) {
+            e.printStackTrace()
+            MenuTemplates.allTemplates
+        }
+    }
+
+    @Synchronized
+    fun saveTemplate(name: String, menu: MenuData): MenuData {
+        val current = getAllTemplates().toMutableList()
+        val newTemplate = menu.copy(
+            id = "template_${UUID.randomUUID().toString().take(8)}",
+            name = name,
+            updatedAt = System.currentTimeMillis()
+        )
+        current.add(0, newTemplate)
+        saveTemplatesList(current)
+        return newTemplate
+    }
+
+    @Synchronized
+    fun deleteTemplate(templateId: String): List<MenuData> {
+        val current = getAllTemplates().filter { it.id != templateId }
+        saveTemplatesList(current)
+        return current
+    }
+
+    @Synchronized
+    fun resetDefaultTemplates(): List<MenuData> {
+        saveTemplatesList(MenuTemplates.allTemplates)
+        return MenuTemplates.allTemplates
+    }
+
+    private fun saveTemplatesList(list: List<MenuData>) {
+        val array = JSONArray()
+        list.forEach { template ->
+            array.put(serializeMenu(template))
+        }
+        templatesFile.writeText(array.toString(2))
     }
 
     @Synchronized
@@ -329,6 +391,7 @@ class MenuRepository(private val context: Context) {
         st.put("currencyPosition", menu.style.currencyPosition.name)
         st.put("textShadow", menu.style.textShadow)
         st.put("sectionDivider", menu.style.sectionDivider.name)
+        st.put("showHeaderDivider", menu.style.showHeaderDivider)
         st.put("titleSizeSp", menu.style.titleSizeSp.toDouble())
         st.put("subtitleSizeSp", menu.style.subtitleSizeSp.toDouble())
         st.put("sectionTitleSizeSp", menu.style.sectionTitleSizeSp.toDouble())
@@ -336,6 +399,12 @@ class MenuRepository(private val context: Context) {
         st.put("itemPriceSizeSp", menu.style.itemPriceSizeSp.toDouble())
         st.put("itemDescSizeSp", menu.style.itemDescSizeSp.toDouble())
         st.put("footerSizeSp", menu.style.footerSizeSp.toDouble())
+        st.put("restaurantNameStyle", serializeTypographySection(menu.style.restaurantNameStyle))
+        st.put("subtitleStyle", serializeTypographySection(menu.style.subtitleStyle))
+        st.put("sectionHeaderStyle", serializeTypographySection(menu.style.sectionHeaderStyle))
+        st.put("dishNameStyle", serializeTypographySection(menu.style.dishNameStyle))
+        st.put("dishPriceStyle", serializeTypographySection(menu.style.dishPriceStyle))
+        st.put("dishDescStyle", serializeTypographySection(menu.style.dishDescStyle))
         root.put("style", st)
 
         // Free Elements
@@ -357,6 +426,8 @@ class MenuRepository(private val context: Context) {
             fObj.put("bgColorHex", fe.bgColorHex)
             fObj.put("bgOpacity", fe.bgOpacity.toDouble())
             fObj.put("cornerRadiusDp", fe.cornerRadiusDp.toDouble())
+            fObj.put("fontFamily", fe.fontFamily.name)
+            fObj.put("customFontPath", fe.customFontPath ?: JSONObject.NULL)
             freeArray.put(fObj)
         }
         root.put("freeElements", freeArray)
@@ -499,13 +570,74 @@ class MenuRepository(private val context: Context) {
             } catch (e: Exception) {
                 SectionDividerStyle.SIMPLE_LINE
             },
+            showHeaderDivider = stObj.optBoolean("showHeaderDivider", true),
             titleSizeSp = stObj.optDouble("titleSizeSp", 26.0).toFloat(),
             subtitleSizeSp = stObj.optDouble("subtitleSizeSp", 13.0).toFloat(),
             sectionTitleSizeSp = stObj.optDouble("sectionTitleSizeSp", 17.0).toFloat(),
             itemNameSizeSp = stObj.optDouble("itemNameSizeSp", 14.0).toFloat(),
             itemPriceSizeSp = stObj.optDouble("itemPriceSizeSp", 14.0).toFloat(),
             itemDescSizeSp = stObj.optDouble("itemDescSizeSp", 11.0).toFloat(),
-            footerSizeSp = stObj.optDouble("footerSizeSp", 10.0).toFloat()
+            footerSizeSp = stObj.optDouble("footerSizeSp", 10.0).toFloat(),
+            restaurantNameStyle = deserializeTypographySection(stObj.optJSONObject("restaurantNameStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("titleSizeSp", 26.0).toFloat(),
+                offsetY = 0f,
+                alignment = try { TextAlignment.valueOf(stObj.optString("textAlignment", "CENTER")) } catch (e: Exception) { TextAlignment.CENTER },
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("titleFont", "SERIF")) } catch (e: Exception) { MenuFontFamily.SERIF },
+                colorHex = stObj.optString("primaryTextColorHex", "#F8FAFC"),
+                isBold = true,
+                isItalic = false,
+                isUnderlined = false
+            )),
+            subtitleStyle = deserializeTypographySection(stObj.optJSONObject("subtitleStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("subtitleSizeSp", 13.0).toFloat(),
+                offsetY = 0f,
+                alignment = try { TextAlignment.valueOf(stObj.optString("textAlignment", "CENTER")) } catch (e: Exception) { TextAlignment.CENTER },
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("bodyFont", "SANS")) } catch (e: Exception) { MenuFontFamily.SANS },
+                colorHex = stObj.optString("secondaryTextColorHex", "#94A3B8"),
+                isBold = false,
+                isItalic = true,
+                isUnderlined = false
+            )),
+            sectionHeaderStyle = deserializeTypographySection(stObj.optJSONObject("sectionHeaderStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("sectionTitleSizeSp", 17.0).toFloat(),
+                offsetY = 0f,
+                alignment = try { TextAlignment.valueOf(stObj.optString("textAlignment", "LEFT")) } catch (e: Exception) { TextAlignment.LEFT },
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("titleFont", "SERIF")) } catch (e: Exception) { MenuFontFamily.SERIF },
+                colorHex = stObj.optString("accentColorHex", "#F59E0B"),
+                isBold = true,
+                isItalic = false,
+                isUnderlined = false
+            )),
+            dishNameStyle = deserializeTypographySection(stObj.optJSONObject("dishNameStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("itemNameSizeSp", 14.0).toFloat(),
+                offsetY = 0f,
+                alignment = try { TextAlignment.valueOf(stObj.optString("textAlignment", "LEFT")) } catch (e: Exception) { TextAlignment.LEFT },
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("bodyFont", "SANS")) } catch (e: Exception) { MenuFontFamily.SANS },
+                colorHex = stObj.optString("primaryTextColorHex", "#F8FAFC"),
+                isBold = false,
+                isItalic = false,
+                isUnderlined = false
+            )),
+            dishPriceStyle = deserializeTypographySection(stObj.optJSONObject("dishPriceStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("itemPriceSizeSp", 14.0).toFloat(),
+                offsetY = 0f,
+                alignment = TextAlignment.RIGHT,
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("bodyFont", "SANS")) } catch (e: Exception) { MenuFontFamily.SANS },
+                colorHex = stObj.optString("priceColorHex", "#F59E0B"),
+                isBold = true,
+                isItalic = false,
+                isUnderlined = false
+            )),
+            dishDescStyle = deserializeTypographySection(stObj.optJSONObject("dishDescStyle"), TypographySectionStyle(
+                fontSizeSp = stObj.optDouble("itemDescSizeSp", 11.0).toFloat(),
+                offsetY = 0f,
+                alignment = try { TextAlignment.valueOf(stObj.optString("textAlignment", "LEFT")) } catch (e: Exception) { TextAlignment.LEFT },
+                fontFamily = try { MenuFontFamily.valueOf(stObj.optString("bodyFont", "SANS")) } catch (e: Exception) { MenuFontFamily.SANS },
+                colorHex = stObj.optString("secondaryTextColorHex", "#94A3B8"),
+                isBold = false,
+                isItalic = true,
+                isUnderlined = false
+            ))
         )
 
         val freeElementsList = mutableListOf<FreeElement>()
@@ -529,7 +661,13 @@ class MenuRepository(private val context: Context) {
                         hasBackground = fObj.optBoolean("hasBackground", true),
                         bgColorHex = fObj.optString("bgColorHex", "#000000"),
                         bgOpacity = fObj.optDouble("bgOpacity", 0.7).toFloat(),
-                        cornerRadiusDp = fObj.optDouble("cornerRadiusDp", 8.0).toFloat()
+                        cornerRadiusDp = fObj.optDouble("cornerRadiusDp", 8.0).toFloat(),
+                        fontFamily = try {
+                            MenuFontFamily.valueOf(fObj.optString("fontFamily", "SANS"))
+                        } catch (e: Exception) {
+                            MenuFontFamily.SANS
+                        },
+                        customFontPath = if (fObj.isNull("customFontPath")) null else fObj.optString("customFontPath")
                     )
                 )
             }
@@ -598,5 +736,45 @@ class MenuRepository(private val context: Context) {
             e.printStackTrace()
             false
         }
+    }
+
+    private fun serializeTypographySection(ts: TypographySectionStyle): JSONObject {
+        val obj = JSONObject()
+        obj.put("fontSizeSp", ts.fontSizeSp.toDouble())
+        obj.put("offsetY", ts.offsetY.toDouble())
+        obj.put("alignment", ts.alignment.name)
+        obj.put("fontFamily", ts.fontFamily.name)
+        obj.put("customFontPath", ts.customFontPath ?: JSONObject.NULL)
+        obj.put("colorHex", ts.colorHex)
+        obj.put("isBold", ts.isBold)
+        obj.put("isItalic", ts.isItalic)
+        obj.put("isUnderlined", ts.isUnderlined)
+        return obj
+    }
+
+    private fun deserializeTypographySection(
+        obj: JSONObject?,
+        defaultTs: TypographySectionStyle
+    ): TypographySectionStyle {
+        if (obj == null) return defaultTs
+        return TypographySectionStyle(
+            fontSizeSp = obj.optDouble("fontSizeSp", defaultTs.fontSizeSp.toDouble()).toFloat(),
+            offsetY = obj.optDouble("offsetY", defaultTs.offsetY.toDouble()).toFloat(),
+            alignment = try {
+                TextAlignment.valueOf(obj.optString("alignment", defaultTs.alignment.name))
+            } catch (e: Exception) {
+                defaultTs.alignment
+            },
+            fontFamily = try {
+                MenuFontFamily.valueOf(obj.optString("fontFamily", defaultTs.fontFamily.name))
+            } catch (e: Exception) {
+                defaultTs.fontFamily
+            },
+            customFontPath = if (obj.isNull("customFontPath")) null else obj.optString("customFontPath"),
+            colorHex = obj.optString("colorHex", defaultTs.colorHex),
+            isBold = obj.optBoolean("isBold", defaultTs.isBold),
+            isItalic = obj.optBoolean("isItalic", defaultTs.isItalic),
+            isUnderlined = obj.optBoolean("isUnderlined", defaultTs.isUnderlined)
+        )
     }
 }

@@ -57,6 +57,7 @@ fun CartaApp(
     val customColors by viewModel.customColors.collectAsStateWithLifecycle()
     val customBadges by viewModel.customBadges.collectAsStateWithLifecycle()
     val customFonts by viewModel.customFonts.collectAsStateWithLifecycle()
+    val templates by viewModel.templates.collectAsStateWithLifecycle()
     val showImagePickerSheet by viewModel.showImagePickerSheet.collectAsStateWithLifecycle()
     val imagePickerForLogo by viewModel.imagePickerForLogo.collectAsStateWithLifecycle()
 
@@ -328,13 +329,16 @@ fun CartaApp(
                     3 -> Step3AdvancedElements(
                         menu = currentMenu,
                         savedColors = customColors,
+                        customFonts = customFonts,
                         onMenuChange = { viewModel.updateMenu(it) },
                         onOpenImagePickerForElement = { viewModel.openImagePickerForElement(it) },
                         onExternalPhotoPicked = { uri, elemId ->
                             viewModel.saveAndApplyImage(uri, false)
                         },
                         onFullscreenPreview = { viewModel.togglePreviewFullscreen(true) },
-                        onNextStep = { viewModel.setStep(4) }
+                        onNextStep = { viewModel.setStep(4) },
+                        onImportFont = { viewModel.importCustomFont(it) },
+                        onDeleteFont = { viewModel.deleteCustomFont(it) }
                     )
                     4 -> Step4Export(
                         menu = currentMenu,
@@ -508,9 +512,20 @@ fun CartaApp(
     // Templates Dialog
     if (showTemplatesDialog) {
         TemplatesDialog(
+            templates = templates,
+            currentMenu = currentMenu,
             onDismiss = { viewModel.setShowTemplates(false) },
             onSelectTemplate = { template ->
                 viewModel.loadTemplate(template)
+            },
+            onSaveCurrentAsTemplate = { name ->
+                viewModel.saveCustomTemplate(name)
+            },
+            onDeleteTemplate = { templateId ->
+                viewModel.deleteTemplate(templateId)
+            },
+            onResetDefaultTemplates = {
+                viewModel.resetDefaultTemplates()
             }
         )
     }

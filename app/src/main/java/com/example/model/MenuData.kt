@@ -31,7 +31,9 @@ data class FreeElement(
     val hasBackground: Boolean = true,
     val bgColorHex: String = "#000000",
     val bgOpacity: Float = 0.70f,
-    val cornerRadiusDp: Float = 8f
+    val cornerRadiusDp: Float = 8f,
+    val fontFamily: MenuFontFamily = MenuFontFamily.SANS,
+    val customFontPath: String? = null
 )
 
 data class MenuHeader(
@@ -53,6 +55,18 @@ data class MenuBackground(
     val customImageUri: String? = null,
     val contrastMode: ContrastMode = ContrastMode.DARKEN,
     val contrastOpacity: Float = 0.25f
+)
+
+data class TypographySectionStyle(
+    val fontSizeSp: Float = 16f,
+    val offsetY: Float = 0f,
+    val alignment: TextAlignment = TextAlignment.LEFT,
+    val fontFamily: MenuFontFamily = MenuFontFamily.SERIF,
+    val customFontPath: String? = null,
+    val colorHex: String = "#F8FAFC",
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    val isUnderlined: Boolean = false
 )
 
 data class MenuStyle(
@@ -80,6 +94,7 @@ data class MenuStyle(
     val currencyPosition: CurrencyPosition = CurrencyPosition.AFTER,
     val textShadow: Boolean = false,
     val sectionDivider: SectionDividerStyle = SectionDividerStyle.SIMPLE_LINE,
+    val showHeaderDivider: Boolean = true,
     // Granular precision sizes (in sp base, scaled with global scale)
     val titleSizeSp: Float = 26f,
     val subtitleSizeSp: Float = 13f,
@@ -87,7 +102,68 @@ data class MenuStyle(
     val itemNameSizeSp: Float = 14f,
     val itemPriceSizeSp: Float = 14f,
     val itemDescSizeSp: Float = 11f,
-    val footerSizeSp: Float = 10f
+    val footerSizeSp: Float = 10f,
+    // 6 Individual Typography & Style Sections
+    val restaurantNameStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 26f,
+        offsetY = 0f,
+        alignment = TextAlignment.CENTER,
+        fontFamily = MenuFontFamily.SERIF,
+        colorHex = "#F8FAFC",
+        isBold = true,
+        isItalic = false,
+        isUnderlined = false
+    ),
+    val subtitleStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 14f,
+        offsetY = 0f,
+        alignment = TextAlignment.CENTER,
+        fontFamily = MenuFontFamily.SANS,
+        colorHex = "#94A3B8",
+        isBold = false,
+        isItalic = true,
+        isUnderlined = false
+    ),
+    val sectionHeaderStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 18f,
+        offsetY = 0f,
+        alignment = TextAlignment.LEFT,
+        fontFamily = MenuFontFamily.SERIF,
+        colorHex = "#F59E0B",
+        isBold = true,
+        isItalic = false,
+        isUnderlined = false
+    ),
+    val dishNameStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 15f,
+        offsetY = 0f,
+        alignment = TextAlignment.LEFT,
+        fontFamily = MenuFontFamily.SANS,
+        colorHex = "#F8FAFC",
+        isBold = false,
+        isItalic = false,
+        isUnderlined = false
+    ),
+    val dishPriceStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 15f,
+        offsetY = 0f,
+        alignment = TextAlignment.RIGHT,
+        fontFamily = MenuFontFamily.SANS,
+        colorHex = "#F59E0B",
+        isBold = true,
+        isItalic = false,
+        isUnderlined = false
+    ),
+    val dishDescStyle: TypographySectionStyle = TypographySectionStyle(
+        fontSizeSp = 12f,
+        offsetY = 0f,
+        alignment = TextAlignment.LEFT,
+        fontFamily = MenuFontFamily.SANS,
+        colorHex = "#94A3B8",
+        isBold = false,
+        isItalic = true,
+        isUnderlined = false
+    )
 )
 
 data class MenuData(

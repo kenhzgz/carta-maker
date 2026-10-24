@@ -95,63 +95,119 @@ object MenuExporter {
             }
         }
 
-        // 5. Draw Restaurant Title
+        // 5. Draw Restaurant Title (using restaurantNameStyle)
+        val restStyle = menu.style.restaurantNameStyle
+        val titleTf = getTypeface(
+            font = restStyle.fontFamily,
+            customPath = restStyle.customFontPath,
+            bold = restStyle.isBold,
+            italic = restStyle.isItalic
+        )
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = primaryColor
-            typeface = titleTypeface
-            textSize = menu.style.titleSizeSp * menu.style.globalFontScale * scale * 2.1f
-            textAlign = if (menu.style.textAlignment == TextAlignment.CENTER) Paint.Align.CENTER else Paint.Align.LEFT
+            color = parseColor(restStyle.colorHex, primaryColor)
+            typeface = titleTf
+            textSize = restStyle.fontSizeSp * menu.style.globalFontScale * scale * 2.1f
+            textAlign = when (restStyle.alignment) {
+                TextAlignment.CENTER -> Paint.Align.CENTER
+                TextAlignment.RIGHT -> Paint.Align.RIGHT
+                TextAlignment.LEFT -> Paint.Align.LEFT
+            }
+            isUnderlineText = restStyle.isUnderlined
             if (menu.style.textShadow) {
                 setShadowLayer(8f * scale, 2f * scale, 2f * scale, Color.argb(180, 0, 0, 0))
             }
         }
-        val titleX = if (menu.style.textAlignment == TextAlignment.CENTER) width / 2f else horizPadding
+        val titleX = when (restStyle.alignment) {
+            TextAlignment.CENTER -> width / 2f
+            TextAlignment.RIGHT -> width - horizPadding
+            TextAlignment.LEFT -> horizPadding
+        }
+        currentY += restStyle.offsetY * scale
         canvas.drawText(menu.header.restaurantName, titleX, currentY + titlePaint.textSize * 0.8f, titlePaint)
         currentY += titlePaint.textSize + (12f * scale)
 
-        // Subtitle
+        // Subtitle (using subtitleStyle)
         if (menu.header.subtitle.isNotBlank()) {
+            val subStyle = menu.style.subtitleStyle
+            val subTf = getTypeface(
+                font = subStyle.fontFamily,
+                customPath = subStyle.customFontPath,
+                bold = subStyle.isBold,
+                italic = subStyle.isItalic
+            )
             val subtitlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = secondaryColor
-                typeface = bodyTypeface
-                textSize = menu.style.subtitleSizeSp * menu.style.globalFontScale * scale * 2.0f
-                textAlign = if (menu.style.textAlignment == TextAlignment.CENTER) Paint.Align.CENTER else Paint.Align.LEFT
+                color = parseColor(subStyle.colorHex, secondaryColor)
+                typeface = subTf
+                textSize = subStyle.fontSizeSp * menu.style.globalFontScale * scale * 2.0f
+                textAlign = when (subStyle.alignment) {
+                    TextAlignment.CENTER -> Paint.Align.CENTER
+                    TextAlignment.RIGHT -> Paint.Align.RIGHT
+                    TextAlignment.LEFT -> Paint.Align.LEFT
+                }
+                isUnderlineText = subStyle.isUnderlined
                 if (menu.style.textShadow) {
                     setShadowLayer(6f * scale, 1f * scale, 1f * scale, Color.argb(160, 0, 0, 0))
                 }
             }
-            canvas.drawText(menu.header.subtitle, titleX, currentY + subtitlePaint.textSize * 0.8f, subtitlePaint)
+            val subX = when (subStyle.alignment) {
+                TextAlignment.CENTER -> width / 2f
+                TextAlignment.RIGHT -> width - horizPadding
+                TextAlignment.LEFT -> horizPadding
+            }
+            currentY += subStyle.offsetY * scale
+            canvas.drawText(menu.header.subtitle, subX, currentY + subtitlePaint.textSize * 0.8f, subtitlePaint)
             currentY += subtitlePaint.textSize + (24f * scale)
         } else {
             currentY += 12f * scale
         }
 
-        // Main Header Divider
-        val headerLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = accentColor
-            strokeWidth = 2.5f * scale
-            alpha = 180
+        // Main Header Divider (Optional)
+        if (menu.style.showHeaderDivider) {
+            val headerLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accentColor
+                strokeWidth = 2.5f * scale
+                alpha = 180
+            }
+            canvas.drawLine(horizPadding, currentY, width - horizPadding, currentY, headerLinePaint)
+            currentY += 28f * scale
+        } else {
+            currentY += 14f * scale
         }
-        canvas.drawLine(horizPadding, currentY, width - horizPadding, currentY, headerLinePaint)
-        currentY += 28f * scale
 
         // 6. Draw Sections & Dishes
         val itemSpacing = menu.style.itemSpacing * scale * 1.8f
         val sectionSpacing = menu.style.sectionSpacing * scale * 1.8f
 
         menu.sections.forEach { section ->
-            // Section Title
+            // Section Title (using sectionHeaderStyle)
+            val secStyle = menu.style.sectionHeaderStyle
+            val secTf = getTypeface(
+                font = secStyle.fontFamily,
+                customPath = secStyle.customFontPath,
+                bold = secStyle.isBold,
+                italic = secStyle.isItalic
+            )
             val sectionTitlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = accentColor
-                typeface = titleTypeface
-                textSize = menu.style.sectionTitleSizeSp * menu.style.globalFontScale * scale * 2.0f
+                color = parseColor(secStyle.colorHex, accentColor)
+                typeface = secTf
+                textSize = secStyle.fontSizeSp * menu.style.globalFontScale * scale * 2.0f
                 letterSpacing = 0.08f
-                textAlign = if (menu.style.textAlignment == TextAlignment.CENTER) Paint.Align.CENTER else Paint.Align.LEFT
+                textAlign = when (secStyle.alignment) {
+                    TextAlignment.CENTER -> Paint.Align.CENTER
+                    TextAlignment.RIGHT -> Paint.Align.RIGHT
+                    TextAlignment.LEFT -> Paint.Align.LEFT
+                }
+                isUnderlineText = secStyle.isUnderlined
                 if (menu.style.textShadow) {
                     setShadowLayer(6f * scale, 1f * scale, 1f * scale, Color.argb(160, 0, 0, 0))
                 }
             }
-            val sX = if (menu.style.textAlignment == TextAlignment.CENTER) width / 2f else horizPadding
+            val sX = when (secStyle.alignment) {
+                TextAlignment.CENTER -> width / 2f
+                TextAlignment.RIGHT -> width - horizPadding
+                TextAlignment.LEFT -> horizPadding
+            }
+            currentY += secStyle.offsetY * scale
             canvas.drawText(section.title.uppercase(), sX, currentY + sectionTitlePaint.textSize * 0.8f, sectionTitlePaint)
             currentY += sectionTitlePaint.textSize + (8f * scale)
 
@@ -239,10 +295,35 @@ object MenuExporter {
         // Price formatting
         val formattedPrice = formatPrice(item.price, menu.style.currencySymbol, menu.style.currencyPosition)
 
+        // Use individual TypographySectionStyle for Name, Price, and Description
+        val dNameStyle = menu.style.dishNameStyle
+        val dPriceStyle = menu.style.dishPriceStyle
+        val dDescStyle = menu.style.dishDescStyle
+
+        val dNameTf = getTypeface(
+            font = dNameStyle.fontFamily,
+            customPath = dNameStyle.customFontPath,
+            bold = dNameStyle.isBold,
+            italic = dNameStyle.isItalic
+        )
+        val dPriceTf = getTypeface(
+            font = dPriceStyle.fontFamily,
+            customPath = dPriceStyle.customFontPath,
+            bold = dPriceStyle.isBold,
+            italic = dPriceStyle.isItalic
+        )
+        val dDescTf = getTypeface(
+            font = dDescStyle.fontFamily,
+            customPath = dDescStyle.customFontPath,
+            bold = dDescStyle.isBold,
+            italic = dDescStyle.isItalic
+        )
+
         val pricePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = priceColor
-            typeface = boldBodyTypeface
-            textSize = menu.style.itemPriceSizeSp * menu.style.globalFontScale * scale * 2.0f
+            color = parseColor(dPriceStyle.colorHex, priceColor)
+            typeface = dPriceTf
+            textSize = dPriceStyle.fontSizeSp * menu.style.globalFontScale * scale * 2.0f
+            isUnderlineText = dPriceStyle.isUnderlined
             if (menu.style.textShadow) {
                 setShadowLayer(5f * scale, 1f * scale, 1f * scale, Color.argb(160, 0, 0, 0))
             }
@@ -250,9 +331,10 @@ object MenuExporter {
         val priceWidth = if (formattedPrice.isNotBlank()) pricePaint.measureText(formattedPrice) else 0f
 
         val namePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = primaryColor
-            typeface = boldBodyTypeface
-            textSize = menu.style.itemNameSizeSp * menu.style.globalFontScale * scale * 2.0f
+            color = parseColor(dNameStyle.colorHex, primaryColor)
+            typeface = dNameTf
+            textSize = dNameStyle.fontSizeSp * menu.style.globalFontScale * scale * 2.0f
+            isUnderlineText = dNameStyle.isUnderlined
             if (menu.style.textShadow) {
                 setShadowLayer(5f * scale, 1f * scale, 1f * scale, Color.argb(160, 0, 0, 0))
             }
@@ -260,13 +342,20 @@ object MenuExporter {
 
         // Calculate card height dynamically
         val descPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = secondaryColor
-            typeface = bodyTypeface
-            textSize = menu.style.itemDescSizeSp * menu.style.globalFontScale * scale * 1.9f
+            color = parseColor(dDescStyle.colorHex, secondaryColor)
+            typeface = dDescTf
+            textSize = dDescStyle.fontSizeSp * menu.style.globalFontScale * scale * 1.9f
+            isUnderlineText = dDescStyle.isUnderlined
         }
 
         val paddingInside = if (boxOpacity > 0.05f) 14f * scale else 0f
         val usableWidth = contentWidth - (paddingInside * 2)
+
+        val descAlignment = when (dDescStyle.alignment) {
+            TextAlignment.CENTER -> Layout.Alignment.ALIGN_CENTER
+            TextAlignment.RIGHT -> Layout.Alignment.ALIGN_OPPOSITE
+            TextAlignment.LEFT -> Layout.Alignment.ALIGN_NORMAL
+        }
 
         val descLayout = if (item.description.isNotBlank()) {
             StaticLayout.Builder.obtain(
@@ -275,7 +364,7 @@ object MenuExporter {
                 item.description.length,
                 descPaint,
                 usableWidth.toInt()
-            ).setAlignment(if (menu.style.textAlignment == TextAlignment.CENTER) Layout.Alignment.ALIGN_CENTER else Layout.Alignment.ALIGN_NORMAL).build()
+            ).setAlignment(descAlignment).build()
         } else null
 
         val estimatedItemHeight = namePaint.textSize + (descLayout?.height?.toFloat() ?: 0f) + (paddingInside * 2) + (8f * scale)
@@ -292,7 +381,7 @@ object MenuExporter {
         }
 
         val itemContentX = startX + paddingInside
-        var itemContentY = currentY + paddingInside
+        var itemContentY = currentY + paddingInside + (dNameStyle.offsetY * scale)
 
         // Badge if present
         var badgeWidth = 0f
@@ -301,7 +390,7 @@ object MenuExporter {
             val badgePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = accentColor
                 typeface = boldBodyTypeface
-                textSize = (menu.style.itemNameSizeSp * 0.75f) * menu.style.globalFontScale * scale * 2.0f
+                textSize = (dNameStyle.fontSizeSp * 0.75f) * menu.style.globalFontScale * scale * 2.0f
             }
             val textW = badgePaint.measureText(badge.uppercase())
             val bHeight = badgePaint.textSize * 1.4f
@@ -330,21 +419,22 @@ object MenuExporter {
         }
 
         val nameStartX = itemContentX + badgeWidth
-        val maxNameWidth = usableWidth - badgeWidth - priceWidth - (16f * scale)
         val nameText = item.name
 
-        if (menu.style.textAlignment == TextAlignment.CENTER) {
+        val isCentered = dNameStyle.alignment == TextAlignment.CENTER || menu.style.textAlignment == TextAlignment.CENTER
+
+        if (isCentered) {
             // Centered layout
             val cX = startX + (contentWidth / 2f)
             canvas.drawText(nameText, cX, itemContentY + namePaint.textSize * 0.85f, namePaint.apply { textAlign = Paint.Align.CENTER })
             if (formattedPrice.isNotBlank()) {
-                val pY = itemContentY + namePaint.textSize + (16f * scale)
+                val pY = itemContentY + namePaint.textSize + (16f * scale) + (dPriceStyle.offsetY * scale)
                 canvas.drawText(formattedPrice, cX, pY, pricePaint.apply { textAlign = Paint.Align.CENTER })
                 itemContentY += pricePaint.textSize + (8f * scale)
             }
             itemContentY += namePaint.textSize + (6f * scale)
         } else {
-            // Left layout with leader lines to right price
+            // Left or aligned layout with leader lines to right price
             namePaint.textAlign = Paint.Align.LEFT
             canvas.drawText(nameText, nameStartX, itemContentY + namePaint.textSize * 0.85f, namePaint)
 
@@ -364,7 +454,7 @@ object MenuExporter {
             // Draw Price on right
             if (formattedPrice.isNotBlank()) {
                 pricePaint.textAlign = Paint.Align.LEFT
-                canvas.drawText(formattedPrice, priceStartX, itemContentY + namePaint.textSize * 0.85f, pricePaint)
+                canvas.drawText(formattedPrice, priceStartX, itemContentY + namePaint.textSize * 0.85f + (dPriceStyle.offsetY * scale), pricePaint)
             }
             itemContentY += namePaint.textSize + (6f * scale)
         }
@@ -372,10 +462,10 @@ object MenuExporter {
         // Draw Description
         if (descLayout != null) {
             canvas.save()
-            canvas.translate(itemContentX, itemContentY)
+            canvas.translate(itemContentX, itemContentY + (dDescStyle.offsetY * scale))
             descLayout.draw(canvas)
             canvas.restore()
-            itemContentY += descLayout.height.toFloat()
+            itemContentY += descLayout.height.toFloat() + (dDescStyle.offsetY * scale)
         }
 
         return itemContentY + paddingInside
@@ -589,6 +679,12 @@ object MenuExporter {
 
     private fun loadBitmapFromUri(context: Context, uriStr: String): Bitmap? {
         return try {
+            if (uriStr == "drawable/cupey_logo" || uriStr == "cupey_logo" || uriStr.contains("cupey_logo")) {
+                val resId = context.resources.getIdentifier("cupey_logo", "drawable", context.packageName)
+                if (resId != 0) {
+                    return BitmapFactory.decodeResource(context.resources, resId)
+                }
+            }
             if (uriStr.startsWith("file://")) {
                 val path = Uri.parse(uriStr).path
                 if (path != null && java.io.File(path).exists()) {
@@ -622,24 +718,34 @@ object MenuExporter {
         }
     }
 
-    private fun getTypeface(font: MenuFontFamily, customPath: String? = null, bold: Boolean): Typeface {
-        if (font == MenuFontFamily.CUSTOM && !customPath.isNullOrBlank()) {
-            val customTf = FontStorageManager.loadTypefaceFromFile(customPath)
-            if (customTf != null) {
-                return if (bold) Typeface.create(customTf, Typeface.BOLD) else customTf
+    private fun getTypeface(
+        font: MenuFontFamily,
+        customPath: String? = null,
+        bold: Boolean = false,
+        italic: Boolean = false
+    ): Typeface {
+        val baseTf = if (font == MenuFontFamily.CUSTOM && !customPath.isNullOrBlank()) {
+            FontStorageManager.loadTypefaceFromFile(customPath) ?: Typeface.SANS_SERIF
+        } else {
+            when (font) {
+                MenuFontFamily.SERIF -> Typeface.SERIF
+                MenuFontFamily.SANS -> Typeface.SANS_SERIF
+                MenuFontFamily.CURSIVE -> try { Typeface.create("cursive", Typeface.NORMAL) } catch (e: Exception) { Typeface.SERIF }
+                MenuFontFamily.MONO -> Typeface.MONOSPACE
+                MenuFontFamily.SERIF_BODONI -> Typeface.SERIF
+                MenuFontFamily.SANS_GEOMETRIC -> Typeface.SANS_SERIF
+                MenuFontFamily.CURSIVE_VINTAGE -> try { Typeface.create("cursive", Typeface.NORMAL) } catch (e: Exception) { Typeface.SERIF }
+                MenuFontFamily.DISPLAY_GOURMET -> Typeface.SERIF
+                MenuFontFamily.CUSTOM -> Typeface.SANS_SERIF
             }
         }
-        return when (font) {
-            MenuFontFamily.SERIF -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
-            MenuFontFamily.SANS -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
-            MenuFontFamily.CURSIVE -> if (bold) Typeface.create("cursive", Typeface.BOLD) else Typeface.create("cursive", Typeface.NORMAL)
-            MenuFontFamily.MONO -> if (bold) Typeface.create(Typeface.MONOSPACE, Typeface.BOLD) else Typeface.MONOSPACE
-            MenuFontFamily.SERIF_BODONI -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
-            MenuFontFamily.SANS_GEOMETRIC -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
-            MenuFontFamily.CURSIVE_VINTAGE -> if (bold) Typeface.create("cursive", Typeface.BOLD) else Typeface.create("cursive", Typeface.NORMAL)
-            MenuFontFamily.DISPLAY_GOURMET -> if (bold) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
-            MenuFontFamily.CUSTOM -> if (bold) Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) else Typeface.SANS_SERIF
+        val style = when {
+            bold && italic -> Typeface.BOLD_ITALIC
+            bold -> Typeface.BOLD
+            italic -> Typeface.ITALIC
+            else -> Typeface.NORMAL
         }
+        return Typeface.create(baseTf, style)
     }
 
     private fun drawFreeElement(
@@ -664,7 +770,12 @@ object MenuExporter {
                 if (element.text.isNotBlank()) {
                     val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = parseColor(element.colorHex, Color.WHITE)
-                        typeface = if (element.isBold) Typeface.create(defaultTypeface, Typeface.BOLD) else defaultTypeface
+                        typeface = getTypeface(
+                            font = element.fontFamily,
+                            customPath = element.customFontPath,
+                            bold = element.isBold,
+                            italic = false
+                        )
                         textSize = element.fontSizeSp * scale * 2.0f
                     }
                     val textW = paint.measureText(element.text)

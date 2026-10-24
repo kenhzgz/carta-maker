@@ -2,6 +2,165 @@ package com.example.model
 
 object MenuTemplates {
 
+    val restauranteCupey: MenuData
+        get() = MenuData(
+            id = "template_restaurante_cupey",
+            name = "Restaurante Cupey",
+            folderId = "default",
+            header = MenuHeader(
+                restaurantName = "Restaurante Cupey",
+                subtitle = "Menú del día",
+                footer = "",
+                logoUri = "drawable/cupey_logo",
+                logoSize = 1.0f,
+                logoShape = LogoShape.CIRCLE,
+                logoAlignment = LogoAlignment.CENTER,
+                logoOffsetY = 0f,
+                headerOffsetY = 0f
+            ),
+            background = MenuBackground(
+                type = BackgroundType.SOLID_COLOR,
+                texture = TexturePreset.KRAFT,
+                solidColorHex = "#F6EFE5",
+                contrastMode = ContrastMode.LIGHTEN,
+                contrastOpacity = 0.0f
+            ),
+            sections = listOf(
+                MenuSection(
+                    title = "POSTRES",
+                    items = listOf(
+                        MenuItem(
+                            name = "Flan de leche",
+                            price = "350",
+                            description = "",
+                            badge = null
+                        )
+                    )
+                ),
+                MenuSection(
+                    title = "BEBIDAS",
+                    items = listOf(
+                        MenuItem(
+                            name = "Cerveza Mayabe",
+                            price = "",
+                            description = "Lata de 355 ml",
+                            badge = null
+                        ),
+                        MenuItem(
+                            name = "Refresco de piña",
+                            price = "",
+                            description = "Lata de 355 ml",
+                            badge = null
+                        ),
+                        MenuItem(
+                            name = "Néctar de pera",
+                            price = "",
+                            description = "Lata de 355 ml",
+                            badge = null
+                        ),
+                        MenuItem(
+                            name = "Malta Bucanero",
+                            price = "",
+                            description = "Lata de 355 ml",
+                            badge = null
+                        )
+                    )
+                )
+            ),
+            style = MenuStyle(
+                aspectRatio = MenuAspectRatio.RATIO_4_5,
+                titleFont = MenuFontFamily.SANS_GEOMETRIC,
+                bodyFont = MenuFontFamily.SERIF,
+                primaryTextColorHex = "#111111",
+                secondaryTextColorHex = "#1A1A1A",
+                priceColorHex = "#1D5C96",
+                accentColorHex = "#1D5C96",
+                cardBgColorHex = "#000000",
+                cardBgOpacity = 0f,
+                cardCornerRadius = 0f,
+                leaderLineStyle = LeaderLineStyle.DOTS,
+                globalFontScale = 1.05f,
+                itemSpacing = 16f,
+                sectionSpacing = 28f,
+                horizontalPadding = 28f,
+                topPadding = 28f,
+                bottomMargin = 28f,
+                textAlignment = TextAlignment.LEFT,
+                currencySymbol = "$",
+                currencyPosition = CurrencyPosition.BEFORE,
+                textShadow = false,
+                sectionDivider = SectionDividerStyle.NONE,
+                showHeaderDivider = false,
+                titleSizeSp = 28f,
+                subtitleSizeSp = 18f,
+                sectionTitleSizeSp = 20f,
+                itemNameSizeSp = 17f,
+                itemPriceSizeSp = 19f,
+                itemDescSizeSp = 14f,
+                footerSizeSp = 11f,
+                restaurantNameStyle = TypographySectionStyle(
+                    fontSizeSp = 28f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.CENTER,
+                    fontFamily = MenuFontFamily.SANS_GEOMETRIC,
+                    colorHex = "#111111",
+                    isBold = true,
+                    isItalic = false,
+                    isUnderlined = false
+                ),
+                subtitleStyle = TypographySectionStyle(
+                    fontSizeSp = 18f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.CENTER,
+                    fontFamily = MenuFontFamily.SERIF,
+                    colorHex = "#111111",
+                    isBold = false,
+                    isItalic = true,
+                    isUnderlined = false
+                ),
+                sectionHeaderStyle = TypographySectionStyle(
+                    fontSizeSp = 20f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.LEFT,
+                    fontFamily = MenuFontFamily.SERIF_BODONI,
+                    colorHex = "#1D5C96",
+                    isBold = true,
+                    isItalic = false,
+                    isUnderlined = false
+                ),
+                dishNameStyle = TypographySectionStyle(
+                    fontSizeSp = 17f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.LEFT,
+                    fontFamily = MenuFontFamily.SERIF,
+                    colorHex = "#111111",
+                    isBold = false,
+                    isItalic = false,
+                    isUnderlined = false
+                ),
+                dishPriceStyle = TypographySectionStyle(
+                    fontSizeSp = 19f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.RIGHT,
+                    fontFamily = MenuFontFamily.SERIF,
+                    colorHex = "#1D5C96",
+                    isBold = true,
+                    isItalic = false,
+                    isUnderlined = false
+                ),
+                dishDescStyle = TypographySectionStyle(
+                    fontSizeSp = 14f,
+                    offsetY = 0f,
+                    alignment = TextAlignment.LEFT,
+                    fontFamily = MenuFontFamily.SERIF,
+                    colorHex = "#1A1A1A",
+                    isBold = false,
+                    isItalic = true,
+                    isUnderlined = false
+                )
+            )
+        )
+
     val atelierBistro: MenuData
         get() = MenuData(
             id = "template_atelier_bistro",
@@ -288,6 +447,7 @@ object MenuTemplates {
         )
 
     val allTemplates = listOf(
+        restauranteCupey,
         atelierBistro,
         pizzeriaNapoli,
         specialtyCoffee,

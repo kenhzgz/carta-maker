@@ -143,6 +143,26 @@ fun Step2Dishes(
                     valueRange = -40f..80f,
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                // Header Divider Line Toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Línea separadora del encabezado:", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            text = "Línea que separa el nombre y subtítulo del resto de la carta",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = menu.style.showHeaderDivider,
+                        onCheckedChange = { onMenuChange(menu.copy(style = menu.style.copy(showHeaderDivider = it))) }
+                    )
+                }
             }
         }
 

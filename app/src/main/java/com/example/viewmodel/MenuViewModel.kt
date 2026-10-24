@@ -53,6 +53,10 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
     private val _customFonts = MutableStateFlow<List<CustomFontItem>>(emptyList())
     val customFonts: StateFlow<List<CustomFontItem>> = _customFonts.asStateFlow()
 
+    // Dynamic Templates
+    private val _templates = MutableStateFlow<List<MenuData>>(emptyList())
+    val templates: StateFlow<List<MenuData>> = _templates.asStateFlow()
+
     private val _showImagePickerSheet = MutableStateFlow(false)
     val showImagePickerSheet: StateFlow<Boolean> = _showImagePickerSheet.asStateFlow()
 
@@ -108,6 +112,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
             val loadedColors = repository.getCustomColors()
             val loadedBadges = repository.getCustomBadges()
             val loadedFonts = FontStorageManager.getCustomFonts(getApplication())
+            val loadedTemplates = repository.getAllTemplates()
 
             _folders.value = loadedFolders
             _savedMenus.value = loadedMenus
@@ -115,6 +120,7 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
             _customColors.value = loadedColors
             _customBadges.value = loadedBadges
             _customFonts.value = loadedFonts
+            _templates.value = loadedTemplates
 
             if (loadedMenus.isNotEmpty()) {
                 _currentMenu.value = loadedMenus.first()
@@ -436,6 +442,37 @@ class MenuViewModel(application: Application) : AndroidViewModel(application) {
         updateMenu(newDraft)
         _showTemplatesDialog.value = false
         showToast("Plantilla \"${template.name}\" cargada")
+    }
+
+    fun saveCustomTemplate(name: String, menu: MenuData = _currentMenu.value) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveTemplate(name, menu)
+            val updated = repository.getAllTemplates()
+            _templates.value = updated
+            withContext(Dispatchers.Main) {
+                showToast("Plantilla \"$name\" guardada con éxito")
+            }
+        }
+    }
+
+    fun deleteTemplate(templateId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = repository.deleteTemplate(templateId)
+            _templates.value = updated
+            withContext(Dispatchers.Main) {
+                showToast("Plantilla eliminada")
+            }
+        }
+    }
+
+    fun resetDefaultTemplates() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val resetList = repository.resetDefaultTemplates()
+            _templates.value = resetList
+            withContext(Dispatchers.Main) {
+                showToast("Plantillas restablecidas")
+            }
+        }
     }
 
     fun loadDraft(menuId: String) {

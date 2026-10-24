@@ -8,7 +8,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,34 +25,47 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.data.CustomFontItem
 import com.example.model.FreeElement
 import com.example.model.FreeElementType
 import com.example.model.MenuData
+import com.example.model.MenuFontFamily
 import com.example.ui.components.ColorPickerRow
 import com.example.ui.components.MenuPreviewCanvas
 import com.example.ui.components.parseComposeColor
 import java.util.UUID
+import kotlin.math.hypot
 
 @Composable
 fun Step3AdvancedElements(
     menu: MenuData,
     savedColors: List<String>,
+    customFonts: List<CustomFontItem> = emptyList(),
     onMenuChange: (MenuData) -> Unit,
     onOpenImagePickerForElement: (elementId: String) -> Unit,
     onExternalPhotoPicked: (Uri, elementId: String) -> Unit,
     onFullscreenPreview: (() -> Unit)? = null,
     onNextStep: (() -> Unit)? = null,
+    onImportFont: ((Uri) -> Unit)? = null,
+    onDeleteFont: ((CustomFontItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var selectedElementId by remember { mutableStateOf<String?>(menu.freeElements.firstOrNull()?.id) }
-    var previewSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // Custom Font File Picker Launcher
+    val fontFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onImportFont?.invoke(uri)
+        }
+    }
 
     // External App File/Photo Picker Launcher
     var targetElementIdForExternal by remember { mutableStateOf<String?>(null) }
@@ -82,66 +96,122 @@ fun Step3AdvancedElements(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Añade textos destacados, sellos, pegatinas y fotos sueltas de platos. Puedes arrastrarlos o usar los controles de posición.",
+                text = "Añade textos destacados, sellos, pegatinas y fotos sueltas de platos. Puedes arrastrarlos libremente, pellizcar para hacer zoom o girar con 2 dedos.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        // Live Interactive Canvas with Drag Support
+        // Live Interactive Canvas with Multi-Touch Drag, Zoom & Rotation
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
-                .onSizeChanged { previewSize = it },
+                .height(340.dp),
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(selectedElementId, menu.freeElements) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            val curId = selectedElementId ?: menu.freeElements.firstOrNull()?.id
-                            if (curId != null && previewSize.width > 0 && previewSize.height > 0) {
-                                val dxRatio = dragAmount.x / previewSize.width.toFloat()
-                                val dyRatio = dragAmount.y / previewSize.height.toFloat()
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val density = LocalDensity.current
+                val containerW = constraints.maxWidth.toFloat()
+                val containerH = constraints.maxHeight.toFloat()
+                val padPx = with(density) { 8.dp.toPx() } * 2f
+                val availW = (containerW - padPx).coerceAtLeast(1f)
+                val availH = (containerH - padPx).coerceAtLeast(1f)
+                val aspectRatio = menu.style.aspectRatio.ratioWidth / menu.style.aspectRatio.ratioHeight
 
-                                val updatedElements = menu.freeElements.map { elem ->
-                                    if (elem.id == curId) {
-                                        elem.copy(
-                                            xRatio = (elem.xRatio + dxRatio).coerceIn(0.05f, 0.95f),
-                                            yRatio = (elem.yRatio + dyRatio).coerceIn(0.05f, 0.95f)
-                                        )
-                                    } else elem
+                val canvasW: Float
+                val canvasH: Float
+                if (availW / availH > aspectRatio) {
+                    canvasH = availH
+                    canvasW = availH * aspectRatio
+                } else {
+                    canvasW = availW
+                    canvasH = availW / aspectRatio
+                }
+
+                val cardLeft = (containerW - canvasW) / 2f
+                val cardTop = (containerH - canvasH) / 2f
+
+                val currentMenuState = rememberUpdatedState(menu)
+                val currentSelectedIdState = rememberUpdatedState(selectedElementId)
+                val onMenuChangeState = rememberUpdatedState(onMenuChange)
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures(panZoomLock = false) { centroid, pan, zoom, rotation ->
+                                val curMenu = currentMenuState.value
+                                if (curMenu.freeElements.isEmpty() || canvasW <= 0f || canvasH <= 0f) return@detectTransformGestures
+
+                                val touchXRatio = (centroid.x - cardLeft) / canvasW
+                                val touchYRatio = (centroid.y - cardTop) / canvasH
+
+                                val activeId = currentSelectedIdState.value ?: curMenu.freeElements.firstOrNull()?.id
+                                val closest = curMenu.freeElements.minByOrNull { elem ->
+                                    hypot(elem.xRatio - touchXRatio, elem.yRatio - touchYRatio)
                                 }
-                                onMenuChange(menu.copy(freeElements = updatedElements))
+                                val targetId = if (closest != null && hypot(closest.xRatio - touchXRatio, closest.yRatio - touchYRatio) < 0.16f) {
+                                    if (closest.id != selectedElementId) {
+                                        selectedElementId = closest.id
+                                    }
+                                    closest.id
+                                } else {
+                                    activeId
+                                }
+
+                                if (targetId != null) {
+                                    val dxRatio = pan.x / canvasW
+                                    val dyRatio = pan.y / canvasH
+
+                                    val updated = curMenu.freeElements.map { elem ->
+                                        if (elem.id == targetId) {
+                                            elem.copy(
+                                                xRatio = (elem.xRatio + dxRatio).coerceIn(0.0f, 1.0f),
+                                                yRatio = (elem.yRatio + dyRatio).coerceIn(0.0f, 1.0f),
+                                                scale = (elem.scale * zoom).coerceIn(0.2f, 4.0f),
+                                                rotation = (elem.rotation + rotation)
+                                            )
+                                        } else elem
+                                    }
+                                    onMenuChangeState.value(curMenu.copy(freeElements = updated))
+                                }
                             }
                         }
-                    }
-            ) {
-                MenuPreviewCanvas(
-                    menu = menu,
-                    modifier = Modifier.fillMaxSize(),
-                    onFullscreenClick = onFullscreenPreview
-                )
+                ) {
+                    MenuPreviewCanvas(
+                        menu = menu,
+                        modifier = Modifier.fillMaxSize(),
+                        onFullscreenClick = onFullscreenPreview
+                    )
 
-                // Drag gesture helper overlay indicator
-                if (selectedElement != null) {
+                    // Helper overlay badge explaining gestures
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(8.dp),
                         shape = RoundedCornerShape(12.dp),
-                        color = Color.Black.copy(alpha = 0.75f),
+                        color = Color.Black.copy(alpha = 0.80f),
                         contentColor = Color.White
                     ) {
-                        Text(
-                            text = "Arrastra en pantalla para mover el elemento seleccionado",
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.OpenWith,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Arrastra para mover • Pellizca para zoom • Gira con 2 dedos",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
                 }
             }
@@ -312,6 +382,193 @@ fun Step3AdvancedElements(
                                     label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) }
                                 )
                             }
+                        }
+
+                        // Font Family Selector for Free Text
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Fuente Tipográfica del Texto:", style = MaterialTheme.typography.bodySmall)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Preset fonts
+                                MenuFontFamily.values().filter { it != MenuFontFamily.CUSTOM }.forEach { font ->
+                                    FilterChip(
+                                        selected = selectedElement.fontFamily == font && selectedElement.customFontPath == null,
+                                        onClick = {
+                                            val updated = menu.freeElements.map {
+                                                if (it.id == selectedElement.id) it.copy(fontFamily = font, customFontPath = null) else it
+                                            }
+                                            onMenuChange(menu.copy(freeElements = updated))
+                                        },
+                                        label = { Text(font.displayName, style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+
+                                // Explicit "Fuente Personalizada" chip
+                                FilterChip(
+                                    selected = selectedElement.fontFamily == MenuFontFamily.CUSTOM || selectedElement.customFontPath != null,
+                                    onClick = {
+                                        if (customFonts.isNotEmpty()) {
+                                            val targetFont = customFonts.find { it.file.absolutePath == selectedElement.customFontPath } ?: customFonts.first()
+                                            val updated = menu.freeElements.map {
+                                                if (it.id == selectedElement.id) it.copy(fontFamily = MenuFontFamily.CUSTOM, customFontPath = targetFont.file.absolutePath) else it
+                                            }
+                                            onMenuChange(menu.copy(freeElements = updated))
+                                        } else {
+                                            fontFilePickerLauncher.launch(
+                                                arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                            )
+                                        }
+                                    },
+                                    label = { Text("Fuente Personalizada", style = MaterialTheme.typography.labelSmall) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Extension, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                )
+
+                                // Direct upload action chip
+                                AssistChip(
+                                    onClick = {
+                                        fontFilePickerLauncher.launch(
+                                            arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                        )
+                                    },
+                                    label = { Text("+ Subir .ttf / .otf", style = MaterialTheme.typography.labelSmall) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    }
+                                )
+                            }
+
+                            // Dedicated Custom Fonts Panel in Free Element
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                border = CardDefaults.outlinedCardBorder()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Icon(Icons.Default.FontDownload, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                            Text(
+                                                text = "Fuentes Personalizadas (${customFonts.size}):",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                fontFilePickerLauncher.launch(
+                                                    arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                                )
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Añadir fuente", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+
+                                    if (customFonts.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            customFonts.forEach { fontItem ->
+                                                val isSelected = selectedElement.customFontPath == fontItem.file.absolutePath
+                                                FilterChip(
+                                                    selected = isSelected,
+                                                    onClick = {
+                                                        val updated = menu.freeElements.map {
+                                                            if (it.id == selectedElement.id) {
+                                                                if (isSelected) it.copy(fontFamily = MenuFontFamily.SANS, customFontPath = null)
+                                                                else it.copy(fontFamily = MenuFontFamily.CUSTOM, customFontPath = fontItem.file.absolutePath)
+                                                            } else it
+                                                        }
+                                                        onMenuChange(menu.copy(freeElements = updated))
+                                                    },
+                                                    label = { Text(fontItem.name, style = MaterialTheme.typography.labelSmall) },
+                                                    leadingIcon = if (isSelected) {
+                                                        { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                    } else null,
+                                                    trailingIcon = if (onDeleteFont != null) {
+                                                        {
+                                                            IconButton(
+                                                                onClick = { onDeleteFont(fontItem) },
+                                                                modifier = Modifier.size(18.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                                                            }
+                                                        }
+                                                    } else null
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    fontFilePickerLauncher.launch(
+                                                        arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                                    )
+                                                }
+                                                .padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "No has añadido fuentes externas todavía",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Text(
+                                                    text = "Toca aquí para importar un archivo de fuente (.ttf o .otf) y aplicarlo",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Font Size Slider for Text
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Tamaño de Fuente:", style = MaterialTheme.typography.bodySmall)
+                                Text("${selectedElement.fontSizeSp.toInt()} sp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Slider(
+                                value = selectedElement.fontSizeSp,
+                                onValueChange = { newSize ->
+                                    val updated = menu.freeElements.map {
+                                        if (it.id == selectedElement.id) it.copy(fontSizeSp = newSize) else it
+                                    }
+                                    onMenuChange(menu.copy(freeElements = updated))
+                                },
+                                valueRange = 8f..48f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
 
                         // Text Color
@@ -485,10 +742,11 @@ fun Step3AdvancedElements(
                     // Position X Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Posición Horizontal (X):", style = MaterialTheme.typography.bodySmall)
-                        Text("${(selectedElement.xRatio * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                        Text("${(selectedElement.xRatio * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
                     Slider(
                         value = selectedElement.xRatio,
@@ -498,17 +756,18 @@ fun Step3AdvancedElements(
                             }
                             onMenuChange(menu.copy(freeElements = updated))
                         },
-                        valueRange = 0.05f..0.95f,
+                        valueRange = 0.0f..1.0f,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     // Position Y Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Posición Vertical (Y):", style = MaterialTheme.typography.bodySmall)
-                        Text("${(selectedElement.yRatio * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                        Text("${(selectedElement.yRatio * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
                     Slider(
                         value = selectedElement.yRatio,
@@ -518,17 +777,33 @@ fun Step3AdvancedElements(
                             }
                             onMenuChange(menu.copy(freeElements = updated))
                         },
-                        valueRange = 0.05f..0.95f,
+                        valueRange = 0.0f..1.0f,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     // Scale Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Escala / Tamaño:", style = MaterialTheme.typography.bodySmall)
-                        Text("${(selectedElement.scale * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                        Text("Escala / Zoom:", style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("${(selectedElement.scale * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            if (selectedElement.scale != 1.0f) {
+                                TextButton(
+                                    onClick = {
+                                        val updated = menu.freeElements.map {
+                                            if (it.id == selectedElement.id) it.copy(scale = 1.0f) else it
+                                        }
+                                        onMenuChange(menu.copy(freeElements = updated))
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text("100%", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
                     Slider(
                         value = selectedElement.scale,
@@ -538,17 +813,33 @@ fun Step3AdvancedElements(
                             }
                             onMenuChange(menu.copy(freeElements = updated))
                         },
-                        valueRange = 0.4f..2.5f,
+                        valueRange = 0.2f..3.5f,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     // Rotation Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Inclinación / Rotación:", style = MaterialTheme.typography.bodySmall)
-                        Text("${selectedElement.rotation.toInt()}°", style = MaterialTheme.typography.labelSmall)
+                        Text("Rotación / Inclinación:", style = MaterialTheme.typography.bodySmall)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("${selectedElement.rotation.toInt()}°", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            if (selectedElement.rotation != 0f) {
+                                TextButton(
+                                    onClick = {
+                                        val updated = menu.freeElements.map {
+                                            if (it.id == selectedElement.id) it.copy(rotation = 0f) else it
+                                        }
+                                        onMenuChange(menu.copy(freeElements = updated))
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                                ) {
+                                    Text("0°", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
                     }
                     Slider(
                         value = selectedElement.rotation,
@@ -558,7 +849,7 @@ fun Step3AdvancedElements(
                             }
                             onMenuChange(menu.copy(freeElements = updated))
                         },
-                        valueRange = -45f..45f,
+                        valueRange = -180f..180f,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

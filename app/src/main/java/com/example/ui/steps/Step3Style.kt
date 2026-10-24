@@ -40,6 +40,7 @@ fun Step3Style(
 ) {
     val scrollState = rememberScrollState()
     var showAdvancedPrecision by remember { mutableStateOf(false) }
+    var activeSectionIndex by remember { mutableIntStateOf(0) }
 
     // Font file picker
     val fontFilePickerLauncher = rememberLauncherForActivityResult(
@@ -110,20 +111,27 @@ fun Step3Style(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 2. Tipografías y Fuentes Personalizadas ---
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // --- 2. Secciones y Tipografías Individuales ---
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "2. Tipografías",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Column {
+                    Text(
+                        text = "2. Secciones y Tipografías",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Edita tamaño, posición, alineación, formato y color de cada elemento",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-                // Upload Custom Font Button (Multi-line friendly)
+                // Upload Custom Font Button
                 OutlinedButton(
                     onClick = {
                         fontFilePickerLauncher.launch(
@@ -143,170 +151,440 @@ fun Step3Style(
                 }
             }
 
-            // Title Font Selector
-            Text("Fuente para Títulos:", style = MaterialTheme.typography.bodySmall)
+            // 6-Section Selector Chips
+            val sectionNames = listOf(
+                "Restaurante",
+                "Subtítulo",
+                "Encabezados",
+                "Platos",
+                "Precios",
+                "Descripción"
+            )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MenuFontFamily.values().forEach { font ->
+                sectionNames.forEachIndexed { index, name ->
                     FilterChip(
-                        selected = menu.style.titleFont == font && menu.style.customTitleFontPath == null,
-                        onClick = {
-                            onMenuChange(menu.copy(style = menu.style.copy(titleFont = font, customTitleFontPath = null)))
-                        },
-                        label = { Text(font.displayName) }
+                        selected = activeSectionIndex == index,
+                        onClick = { activeSectionIndex = index },
+                        label = { Text(name, style = MaterialTheme.typography.labelMedium) },
+                        leadingIcon = if (activeSectionIndex == index) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        } else null
                     )
                 }
             }
 
-            // Body Font Selector
-            Text("Fuente para Cuerpo de Texto:", style = MaterialTheme.typography.bodySmall)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Current Section Data & Updater
+            val currentStyle = when (activeSectionIndex) {
+                0 -> menu.style.restaurantNameStyle
+                1 -> menu.style.subtitleStyle
+                2 -> menu.style.sectionHeaderStyle
+                3 -> menu.style.dishNameStyle
+                4 -> menu.style.dishPriceStyle
+                else -> menu.style.dishDescStyle
+            }
+
+            val currentTitle = when (activeSectionIndex) {
+                0 -> "Nombre del Restaurante"
+                1 -> "Subtítulo / Lema"
+                2 -> "Encabezados (Postres, Bebidas...)"
+                3 -> "Nombre de los Platos"
+                4 -> "Precios de los Platos"
+                else -> "Descripción de los Platos"
+            }
+
+            val updateSection: (TypographySectionStyle) -> Unit = { newStyle ->
+                val updatedMenuStyle = when (activeSectionIndex) {
+                    0 -> menu.style.copy(restaurantNameStyle = newStyle)
+                    1 -> menu.style.copy(subtitleStyle = newStyle)
+                    2 -> menu.style.copy(sectionHeaderStyle = newStyle)
+                    3 -> menu.style.copy(dishNameStyle = newStyle)
+                    4 -> menu.style.copy(dishPriceStyle = newStyle)
+                    else -> menu.style.copy(dishDescStyle = newStyle)
+                }
+                onMenuChange(menu.copy(style = updatedMenuStyle))
+            }
+
+            // Editing Card for Selected Section
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ),
+                border = CardDefaults.outlinedCardBorder()
             ) {
-                MenuFontFamily.values().forEach { font ->
-                    FilterChip(
-                        selected = menu.style.bodyFont == font && menu.style.customBodyFontPath == null,
-                        onClick = {
-                            onMenuChange(menu.copy(style = menu.style.copy(bodyFont = font, customBodyFontPath = null)))
-                        },
-                        label = { Text(font.displayName) }
-                    )
-                }
-            }
-
-            // Uploaded Custom Fonts List
-            if (customFonts.isNotEmpty()) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Header with Section Name
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "Mis Fuentes Subidas (Guardadas en el teléfono):",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "Editando: $currentTitle",
+                            style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = try {
+                                Color(android.graphics.Color.parseColor(currentStyle.colorHex))
+                            } catch (_: Exception) {
+                                MaterialTheme.colorScheme.primary
+                            },
+                            modifier = Modifier
+                                .size(24.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(6.dp))
+                        ) {}
+                    }
 
-                        customFonts.forEach { fontItem ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    // A) Font Size (sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Tamaño de Fuente:", style = MaterialTheme.typography.bodySmall)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        if (currentStyle.fontSizeSp > 8f) {
+                                            updateSection(currentStyle.copy(fontSizeSp = currentStyle.fontSizeSp - 1f))
+                                        }
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Reducir tamaño", modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    text = "${currentStyle.fontSizeSp.toInt()} sp",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (currentStyle.fontSizeSp < 56f) {
+                                            updateSection(currentStyle.copy(fontSizeSp = currentStyle.fontSizeSp + 1f))
+                                        }
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Aumentar tamaño", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        Slider(
+                            value = currentStyle.fontSizeSp,
+                            onValueChange = { updateSection(currentStyle.copy(fontSizeSp = it)) },
+                            valueRange = 8f..56f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // B) Vertical Position (Offset Y)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Posición Vertical (Offset Y):", style = MaterialTheme.typography.bodySmall)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "${if (currentStyle.offsetY > 0) "+" else ""}${currentStyle.offsetY.toInt()} px",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (currentStyle.offsetY != 0f) {
+                                    TextButton(
+                                        onClick = { updateSection(currentStyle.copy(offsetY = 0f)) },
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("0 px", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                        Slider(
+                            value = currentStyle.offsetY,
+                            onValueChange = { updateSection(currentStyle.copy(offsetY = it)) },
+                            valueRange = -50f..50f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // C) Alignment
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Alineación:", style = MaterialTheme.typography.bodySmall)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = currentStyle.alignment == TextAlignment.LEFT,
+                                onClick = { updateSection(currentStyle.copy(alignment = TextAlignment.LEFT)) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                                icon = { Icon(Icons.Default.FormatAlignLeft, contentDescription = null, modifier = Modifier.size(16.dp)) }
                             ) {
-                                Text(fontItem.name, style = MaterialTheme.typography.bodySmall)
+                                Text("Izquierda", style = MaterialTheme.typography.labelSmall)
+                            }
+                            SegmentedButton(
+                                selected = currentStyle.alignment == TextAlignment.CENTER,
+                                onClick = { updateSection(currentStyle.copy(alignment = TextAlignment.CENTER)) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                                icon = { Icon(Icons.Default.FormatAlignCenter, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            ) {
+                                Text("Centro", style = MaterialTheme.typography.labelSmall)
+                            }
+                            SegmentedButton(
+                                selected = currentStyle.alignment == TextAlignment.RIGHT,
+                                onClick = { updateSection(currentStyle.copy(alignment = TextAlignment.RIGHT)) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                                icon = { Icon(Icons.Default.FormatAlignRight, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            ) {
+                                Text("Derecha", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    val isTitle = menu.style.customTitleFontPath == fontItem.file.absolutePath
-                                    val isBody = menu.style.customBodyFontPath == fontItem.file.absolutePath
+                    // D) Bold, Italic, Underlined
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Estilo y Formato:", style = MaterialTheme.typography.bodySmall)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilterChip(
+                                selected = currentStyle.isBold,
+                                onClick = { updateSection(currentStyle.copy(isBold = !currentStyle.isBold)) },
+                                label = { Text("Negrita (Bold)") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.FormatBold, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = currentStyle.isItalic,
+                                onClick = { updateSection(currentStyle.copy(isItalic = !currentStyle.isItalic)) },
+                                label = { Text("Cursiva (Italic)") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.FormatItalic, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilterChip(
+                                selected = currentStyle.isUnderlined,
+                                onClick = { updateSection(currentStyle.copy(isUnderlined = !currentStyle.isUnderlined)) },
+                                label = { Text("Subrayado (Underlined)") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.FormatUnderlined, contentDescription = null, modifier = Modifier.size(16.dp))
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
 
-                                    FilterChip(
-                                        selected = isTitle,
-                                        onClick = {
-                                            val newPath = if (isTitle) null else fontItem.file.absolutePath
-                                            val newFont = if (isTitle) MenuFontFamily.SERIF else MenuFontFamily.CUSTOM
-                                            onMenuChange(menu.copy(style = menu.style.copy(titleFont = newFont, customTitleFontPath = newPath)))
-                                        },
-                                        label = { Text("Títulos", style = MaterialTheme.typography.labelSmall) }
+                    // E) Font Family Selector
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Fuente Tipográfica:", style = MaterialTheme.typography.bodySmall)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Preset fonts
+                            MenuFontFamily.values().filter { it != MenuFontFamily.CUSTOM }.forEach { font ->
+                                FilterChip(
+                                    selected = currentStyle.fontFamily == font && currentStyle.customFontPath == null,
+                                    onClick = {
+                                        updateSection(currentStyle.copy(fontFamily = font, customFontPath = null))
+                                    },
+                                    label = { Text(font.displayName) }
+                                )
+                            }
+
+                            // Explicit "Fuente Personalizada" chip in main list
+                            FilterChip(
+                                selected = currentStyle.fontFamily == MenuFontFamily.CUSTOM || currentStyle.customFontPath != null,
+                                onClick = {
+                                    if (customFonts.isNotEmpty()) {
+                                        val targetFont = customFonts.find { it.file.absolutePath == currentStyle.customFontPath } ?: customFonts.first()
+                                        updateSection(currentStyle.copy(fontFamily = MenuFontFamily.CUSTOM, customFontPath = targetFont.file.absolutePath))
+                                    } else {
+                                        fontFilePickerLauncher.launch(
+                                            arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                        )
+                                    }
+                                },
+                                label = { Text("Fuente Personalizada") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Extension, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            )
+
+                            // Direct upload action chip
+                            AssistChip(
+                                onClick = {
+                                    fontFilePickerLauncher.launch(
+                                        arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
                                     )
+                                },
+                                label = { Text("+ Subir .ttf / .otf") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            )
+                        }
 
-                                    FilterChip(
-                                        selected = isBody,
+                        // Dedicated Custom Fonts Panel (Always visible so users can always add and select their fonts)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            border = CardDefaults.outlinedCardBorder()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Icon(Icons.Default.FontDownload, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Text(
+                                            text = "Fuentes Personalizadas (${customFonts.size}):",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    TextButton(
                                         onClick = {
-                                            val newPath = if (isBody) null else fontItem.file.absolutePath
-                                            val newFont = if (isBody) MenuFontFamily.SANS else MenuFontFamily.CUSTOM
-                                            onMenuChange(menu.copy(style = menu.style.copy(bodyFont = newFont, customBodyFontPath = newPath)))
+                                            fontFilePickerLauncher.launch(
+                                                arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                            )
                                         },
-                                        label = { Text("Texto", style = MaterialTheme.typography.labelSmall) }
-                                    )
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Añadir fuente", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
 
-                                    if (onDeleteFont != null) {
-                                        IconButton(
-                                            onClick = { onDeleteFont(fontItem) },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar fuente", tint = MaterialTheme.colorScheme.error)
+                                if (customFonts.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        customFonts.forEach { fontItem ->
+                                            val isSelected = currentStyle.customFontPath == fontItem.file.absolutePath
+                                            FilterChip(
+                                                selected = isSelected,
+                                                onClick = {
+                                                    if (isSelected) {
+                                                        updateSection(currentStyle.copy(fontFamily = MenuFontFamily.SERIF, customFontPath = null))
+                                                    } else {
+                                                        updateSection(currentStyle.copy(fontFamily = MenuFontFamily.CUSTOM, customFontPath = fontItem.file.absolutePath))
+                                                    }
+                                                },
+                                                label = { Text(fontItem.name) },
+                                                leadingIcon = if (isSelected) {
+                                                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                                                } else null,
+                                                trailingIcon = if (onDeleteFont != null) {
+                                                    {
+                                                        IconButton(
+                                                            onClick = { onDeleteFont(fontItem) },
+                                                            modifier = Modifier.size(18.dp)
+                                                        ) {
+                                                            Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                                                        }
+                                                    }
+                                                } else null
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                fontFilePickerLauncher.launch(
+                                                    arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream")
+                                                )
+                                            }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.UploadFile, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "No has añadido fuentes externas todavía",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Text(
+                                                text = "Toca aquí para importar un archivo de fuente (.ttf o .otf) y usarlo en este texto",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
+                    // F) Color for this Section
+                    ColorPickerRow(
+                        title = "Color de $currentTitle",
+                        selectedHex = currentStyle.colorHex,
+                        onColorSelected = { updateSection(currentStyle.copy(colorHex = it)) },
+                        savedCustomColors = savedColors,
+                        onSaveCustomColor = onSaveCustomColor,
+                        onDeleteCustomColor = onDeleteCustomColor
+                    )
                 }
             }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 3. Colores Personalizables y Paleta Guardada ---
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // --- 3. Caja de Platos y Líneas de Líderes ---
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "3. Paleta de Colores de la Carta",
+                text = "3. Cajas y Líneas de Precios",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
 
+            // Card Background Color
             ColorPickerRow(
-                title = "Color de Texto Principal",
-                selectedHex = menu.style.primaryTextColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(primaryTextColorHex = it))) },
-                savedCustomColors = savedColors,
-                onSaveCustomColor = onSaveCustomColor,
-                onDeleteCustomColor = onDeleteCustomColor
-            )
-
-            ColorPickerRow(
-                title = "Color de Texto Secundario (descripciones)",
-                selectedHex = menu.style.secondaryTextColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(secondaryTextColorHex = it))) },
-                savedCustomColors = savedColors,
-                onSaveCustomColor = onSaveCustomColor,
-                onDeleteCustomColor = onDeleteCustomColor
-            )
-
-            ColorPickerRow(
-                title = "Color de Precios",
-                selectedHex = menu.style.priceColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(priceColorHex = it))) },
-                savedCustomColors = savedColors,
-                onSaveCustomColor = onSaveCustomColor,
-                onDeleteCustomColor = onDeleteCustomColor
-            )
-
-            ColorPickerRow(
-                title = "Color de Acento (líneas y títulos)",
-                selectedHex = menu.style.accentColorHex,
-                onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(accentColorHex = it))) },
-                savedCustomColors = savedColors,
-                onSaveCustomColor = onSaveCustomColor,
-                onDeleteCustomColor = onDeleteCustomColor
-            )
-
-            ColorPickerRow(
-                title = "Fondo de las Cajas de Platos",
+                title = "Color de Fondo de las Cajas de Platos",
                 selectedHex = menu.style.cardBgColorHex,
                 onColorSelected = { onMenuChange(menu.copy(style = menu.style.copy(cardBgColorHex = it))) },
                 savedCustomColors = savedColors,
                 onSaveCustomColor = onSaveCustomColor,
                 onDeleteCustomColor = onDeleteCustomColor
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-        // --- 4. Caja de Platos y Líneas de Líderes ---
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "4. Cajas y Líneas de Precios",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
             )
 
             // Card Opacity Slider
@@ -359,10 +637,10 @@ fun Step3Style(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 5. Alineación, Moneda y Divisores ---
+        // --- 4. Alineación, Moneda y Divisores ---
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "5. Diseño y Disposición",
+                text = "4. Diseño y Disposición",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -450,14 +728,34 @@ fun Step3Style(
                     onCheckedChange = { onMenuChange(menu.copy(style = menu.style.copy(textShadow = it))) }
                 )
             }
+
+            // Header divider line toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Línea separadora del encabezado:", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = "Separa el nombre y subtítulo del restaurante de las secciones",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = menu.style.showHeaderDivider,
+                    onCheckedChange = { onMenuChange(menu.copy(style = menu.style.copy(showHeaderDivider = it))) }
+                )
+            }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 6. Espaciados, Márgenes y Escala Global ---
+        // --- 5. Espaciados, Márgenes y Escala Global ---
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                text = "6. Márgenes y Espaciados",
+                text = "5. Márgenes y Espaciados",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -561,7 +859,7 @@ fun Step3Style(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // --- 7. Controles de Precisión Avanzada ---
+        // --- 6. Controles de Precisión Avanzada ---
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),

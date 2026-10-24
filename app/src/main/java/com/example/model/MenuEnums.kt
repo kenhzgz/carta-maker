@@ -67,7 +67,8 @@ enum class SectionDividerStyle(val displayName: String) {
 
 enum class TextAlignment(val displayName: String) {
     LEFT("Izquierda"),
-    CENTER("Centrado")
+    CENTER("Centrado"),
+    RIGHT("Derecha")
 }
 
 enum class CurrencyPosition(val displayName: String) {
